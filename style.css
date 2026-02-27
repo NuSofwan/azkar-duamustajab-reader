@@ -1,30 +1,59 @@
-/* CSS Variables for Light/Dark Mode */
+/* CSS Variables for Light/Dark Mode (Peach/Salmon Theme) */
 :root {
-    --bg-primary: #f8fafc;
+    --bg-primary: #FFF5F0;
+    /* Soft peach background */
     --bg-secondary: #ffffff;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
-    --border: #e2e8f0;
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --radius: 8px;
-    --transition: all 0.3s ease;
+    --text-primary: #1F2937;
+    --text-secondary: #6B7280;
+
+    /* Peach / Salmon Theme */
+    --accent: #FF8A65;
+    /* Peach/Salmon */
+    --accent-hover: #F4511E;
+    /* Darker Salmon */
+    --accent-light: #FFCCBC;
+    /* Soft Peach Background */
+    --gold: #FFB74D;
+    /* Soft Orange/Gold for highlights */
+
+    --border: #FBE9E7;
+
+    /* Modern shadow & softer look */
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 12px -2px rgba(255, 138, 101, 0.15), 0 2px 6px -2px rgba(255, 138, 101, 0.1);
+    --shadow-lg: 0 10px 25px -3px rgba(255, 138, 101, 0.2), 0 4px 10px -4px rgba(255, 138, 101, 0.1);
+
+    --radius: 16px;
+    /* Playful, rounder radius for this theme */
+    --radius-full: 9999px;
+
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --bg-secondary-glass: rgba(255, 255, 255, 0.85);
 }
 
 [data-theme='dark'] {
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-secondary-glass: rgba(30, 41, 59, 0.85);
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --border: #334155;
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-}
+    --bg-primary: #1F1B18;
+    /* Deep brownish/dark peach */
+    --bg-secondary: #2D2421;
+    --bg-secondary-glass: rgba(45, 36, 33, 0.85);
 
-:root {
-    --bg-secondary-glass: rgba(255, 255, 255, 0.85);
+    --text-primary: #FFF0E6;
+    --text-secondary: #BCAAA4;
+
+    --accent: #FF8A65;
+    /* Keep Peach */
+    --accent-hover: #FFAB91;
+    /* Lighter Peach for dark mode contrast */
+    --accent-light: rgba(255, 138, 101, 0.15);
+    /* Soft transparent Peach */
+    --gold: #FFCC80;
+    /* Brighter orange/gold for dark mode */
+
+    --border: #4E342E;
+
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -50,13 +79,27 @@
 body {
     font-family: 'Sarabun', 'Inter', sans-serif;
     background-color: var(--bg-primary);
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%233b82f6' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     color: var(--text-primary);
-    height: 100vh;
+    line-height: 1.6;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    transition: var(--transition), background-color 0.3s ease;
+    min-height: 100vh;
+    transition: var(--transition);
+    position: relative;
+    overflow-x: hidden;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    /* Soft Peach/Salmon SVG Pattern */
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23FF8A65' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    z-index: -1;
+    pointer-events: none;
 }
 
 /* Navbar */
@@ -109,8 +152,8 @@ body {
 }
 
 .book-btn:hover {
-    background-color: rgba(59, 130, 246, 0.1);
-    color: var(--accent);
+    background-color: var(--accent-light);
+    color: var(--accent-hover);
 }
 
 .book-btn.active {
@@ -323,6 +366,52 @@ body {
     background: rgba(239, 68, 68, 0.1);
 }
 
+/* Smart Index Specific Styling */
+#tocList li {
+    margin-bottom: 0.5rem;
+    border-bottom: none;
+}
+
+#tocList li a {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-secondary);
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    gap: 0.75rem;
+}
+
+#tocList li a i {
+    color: var(--accent);
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#tocList li a span {
+    color: var(--accent);
+    font-size: 0.95rem;
+}
+
+#tocList li a:hover {
+    background-color: var(--bg-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+[data-theme='dark'] #tocList li a {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] #tocList li a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
 textarea {
     width: 100%;
     padding: 0.75rem;
@@ -415,6 +504,55 @@ textarea:focus {
     margin: 0 0.5rem;
 }
 
+/* More Options Dropdown */
+.more-tools-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.more-tools-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+}
+
+.more-tools-menu.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.more-tools-menu .icon-btn {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    gap: 0.5rem;
+}
+
+.more-tools-menu .icon-btn::after {
+    content: attr(title);
+    font-size: 0.9rem;
+    font-family: 'Sarabun', sans-serif;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
 .page-info {
     font-weight: 500;
     font-size: 0.95rem;
@@ -500,6 +638,12 @@ textarea:focus {
 #pdfCanvas {
     image-rendering: high-quality;
     image-rendering: -webkit-optimize-contrast;
+    transition: filter 0.3s ease;
+}
+
+[data-theme='dark'] #pdfCanvas {
+    /* Night mode for PDF: invert colors, rotate hue back, soften brightness */
+    filter: invert(0.9) hue-rotate(180deg) brightness(85%) contrast(1.1);
 }
 
 /* Phase 4 Text & Highlight Layers */
@@ -730,7 +874,7 @@ body.focus-mode .tasbih-container {
     background-color: var(--accent);
     color: white;
     border: none;
-    box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.4), 0 4px 6px -2px rgba(59, 130, 246, 0.2);
+    box-shadow: var(--shadow-md);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -738,17 +882,43 @@ body.focus-mode .tasbih-container {
     transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     user-select: none;
     -webkit-tap-highlight-color: transparent;
-    display: flex;
-    flex-direction: column;
+    position: relative;
+    padding: 0;
 }
 
 .tasbih-btn:active {
     transform: scale(0.9);
-    box-shadow: 0 5px 10px -3px rgba(59, 130, 246, 0.4);
+    box-shadow: var(--shadow-sm);
 }
 
 .tasbih-btn.pulse {
     animation: pulse-ring 0.3s ease-out;
+}
+
+.tasbih-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: rotate(-90deg);
+}
+
+.tasbih-ring-progress {
+    stroke-dasharray: 188.5;
+    /* 2 * PI * r(30) */
+    stroke-dashoffset: 188.5;
+    /* Hidden by default */
+    transition: stroke-dashoffset 0.3s ease;
+}
+
+.tasbih-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    z-index: 2;
 }
 
 .tasbih-count {
@@ -760,40 +930,7 @@ body.focus-mode .tasbih-container {
 .tasbih-icon {
     font-size: 0.8rem;
     opacity: 0.8;
-    margin-bottom: 2px;
-}
-
-.tasbih-reset {
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
-    cursor: pointer;
-    box-shadow: var(--shadow-sm);
-    transition: var(--transition);
-}
-
-.tasbih-reset:hover {
-    color: #ef4444;
-    border-color: #ef4444;
-}
-
-@keyframes pulse-ring {
-    0% {
-        transform: scale(0.9);
-        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
-    }
-
-    50% {
-        transform: scale(1.05);
-    }
-
-    100% {
-        transform: scale(1);
-        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
-    }
+    margin-top: 2px;
 }
 
 /* Phase 4: Daily Tracking */

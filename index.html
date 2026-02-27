@@ -13,7 +13,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Azkar">
-    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="icon" href="icon.png" type="image/png">
+    <link rel="apple-touch-icon" href="icon.png">
 
     <!-- Google Fonts -->
     <link
@@ -101,6 +102,15 @@
                     </div>
                 </div>
 
+                <!-- Phase 8: Table of Contents (Smart Index) -->
+                <div class="tools-section">
+                    <h4><i class="fa-solid fa-list-ul"></i> สารบัญ (Table of Contents)</h4>
+                    <ul id="tocList" class="bookmarks-list">
+                        <li style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem;">กำลังโหลดสารบัญ...
+                        </li>
+                    </ul>
+                </div>
+
                 <!-- Phase 3: Bookmarks -->
                 <div class="tools-section">
                     <h4>บุ๊กมาร์ก</h4>
@@ -139,26 +149,38 @@
             <div class="pdf-container" id="pdfContainer" style="display: none;">
                 <!-- Toolbar for PDF -->
                 <div class="pdf-toolbar">
-                    <button id="prevPage" class="icon-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button id="prevPage" class="icon-btn" title="หน้าก่อนหน้า"><i
+                            class="fa-solid fa-chevron-left"></i></button>
                     <span class="page-info">
                         หน้า <select id="pageNumSelect" class="page-select" aria-label="เลือกหน้า"></select>
                         / <span id="pageCount">-</span>
                     </span>
-                    <button id="nextPage" class="icon-btn"><i class="fa-solid fa-chevron-right"></i></button>
+                    <button id="nextPage" class="icon-btn" title="หน้าถัดไป"><i
+                            class="fa-solid fa-chevron-right"></i></button>
+
                     <div class="separator"></div>
-                    <button id="zoomOut" class="icon-btn" title="ย่อ"><i
-                            class="fa-solid fa-magnifying-glass-minus"></i></button>
-                    <button id="zoomIn" class="icon-btn" title="ขยาย"><i
-                            class="fa-solid fa-magnifying-glass-plus"></i></button>
-                    <div class="separator"></div>
-                    <!-- Navigation Mode Toggle -->
-                    <button id="navModeBtn" class="icon-btn" title="โหมดเลื่อนหน้า: เลื่อนลง"><i
-                            class="fa-solid fa-arrows-up-down"></i></button>
-                    <!-- Phase 4 (v2): Highlighter Mode -->
-                    <button id="toggleHighlightModeBtn" class="icon-btn" title="เปิด/ปิด โหมดไฮไลท์อิสระ"><i
-                            class="fa-solid fa-highlighter"></i></button>
-                    <button id="toggleSidebarBtn" class="icon-btn" title="เปิดหน้าต่างเครื่องมือ"><i
-                            class="fa-solid fa-pen-to-square"></i></button>
+
+                    <!-- Primary Tool -->
+                    <button id="toggleSidebarBtn" class="icon-btn" title="เครื่องมือ & สารบัญ"><i
+                            class="fa-solid fa-bars-staggered"></i></button>
+
+                    <!-- More Tools Dropdown -->
+                    <div class="more-tools-container">
+                        <button id="moreToolsBtn" class="icon-btn" title="เครื่องมือเพิ่มเติม"><i
+                                class="fa-solid fa-ellipsis-vertical"></i></button>
+                        <div id="moreToolsMenu" class="more-tools-menu">
+                            <button id="zoomIn" class="icon-btn" title="ขยาย (Zoom In)"><i
+                                    class="fa-solid fa-magnifying-glass-plus"></i></button>
+                            <button id="zoomOut" class="icon-btn" title="ย่อ (Zoom Out)"><i
+                                    class="fa-solid fa-magnifying-glass-minus"></i></button>
+                            <!-- Navigation Mode Toggle -->
+                            <button id="navModeBtn" class="icon-btn" title="โหมดเลื่อนหน้า: เลื่อนลง"><i
+                                    class="fa-solid fa-arrows-up-down"></i></button>
+                            <!-- Highlighter Mode -->
+                            <button id="toggleHighlightModeBtn" class="icon-btn" title="เปิด/ปิด โหมดไฮไลท์"><i
+                                    class="fa-solid fa-highlighter"></i></button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Phase 4 (v2): Highlight Color Picker & Tools -->
@@ -213,12 +235,29 @@
         <!-- Phase 3: Smart Tasbih -->
         <div class="tasbih-container">
             <button class="tasbih-btn" id="tasbihBtn" aria-label="Tasbih Counter">
-                <span class="tasbih-count" id="tasbihCount">0</span>
-                <span class="tasbih-icon"><i class="fa-solid fa-hand-holding-heart"></i></span>
+                <svg class="tasbih-ring" width="64" height="64" viewBox="0 0 64 64">
+                    <circle class="tasbih-ring-bg" cx="32" cy="32" r="30" fill="none" stroke="rgba(255,255,255,0.2)"
+                        stroke-width="4"></circle>
+                    <circle class="tasbih-ring-progress" id="tasbihRingProgress" cx="32" cy="32" r="30" fill="none"
+                        stroke="var(--gold)" stroke-width="4" stroke-linecap="round"></circle>
+                </svg>
+                <div class="tasbih-content">
+                    <span class="tasbih-count" id="tasbihCount">0</span>
+                    <span class="tasbih-icon"><i class="fa-solid fa-hand-holding-heart"></i></span>
+                </div>
             </button>
             <button class="tasbih-reset" id="tasbihReset" title="รีเซ็ตตัวนับ">รีเซ็ต</button>
         </div>
     </main>
+
+    <!-- Onboarding Tooltip -->
+    <div id="onboardingTooltip" class="onboarding-tooltip" style="display: none;">
+        <div class="tooltip-content">
+            <i class="fa-solid fa-arrows-left-right"></i>
+            <p>ปัดซ้าย-ขวา เพื่อเปลี่ยนหน้า</p>
+            <button id="closeTooltipBtn" class="primary-btn">เข้าใจแล้ว</button>
+        </div>
+    </div>
 
     <!-- Phase 2: PDF.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>

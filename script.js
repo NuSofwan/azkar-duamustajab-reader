@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
     const navModeBtn = document.getElementById('navModeBtn');
     const navModeIcon = navModeBtn.querySelector('i');
+    const moreToolsBtn = document.getElementById('moreToolsBtn');
+    const moreToolsMenu = document.getElementById('moreToolsMenu');
 
     const pageNumSelect = document.getElementById('pageNumSelect');
     const pageCountSpan = document.getElementById('pageCount');
@@ -192,6 +194,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     closeSidebarBtn.addEventListener('click', () => sidebar.classList.remove('open'));
     toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
+
+    // --- More Tools Menu Toggle ---
+    moreToolsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        moreToolsMenu.classList.toggle('show');
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!moreToolsBtn.contains(e.target) && !moreToolsMenu.contains(e.target)) {
+            moreToolsMenu.classList.remove('show');
+        }
+    });
 
     // --- Navigation Mode Toggle ---
     const updateNavModeUI = () => {
@@ -544,6 +559,80 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    const loadTOC = async (pdfDoc_) => {
+        const tocList = document.getElementById('tocList');
+        if (!tocList) return;
+
+        tocList.innerHTML = '<li style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem;">กำลังโหลดสารบัญ...</li>';
+        try {
+            const outline = await pdfDoc_.getOutline();
+            if (!outline || outline.length === 0) {
+                // Hardcoded fallback
+                if (currentBook === 'th_athkar_assabah_walmasaa.pdf') {
+                    tocList.innerHTML = `
+                        <li><a href="#" class="toc-link" data-page="31"><i class="fa-solid fa-bookmark"></i> <span>วิธีการอ่านอัซการ</span></a></li>
+                        <li><a href="#" class="toc-link" data-page="10"><i class="fa-solid fa-bookmark"></i> <span>อัซการ</span></a></li>
+                    `;
+                } else if (currentBook === 'dua_mustajab_th.pdf') {
+                    tocList.innerHTML = `
+                        <li><a href="#" class="toc-link" data-page="12"><i class="fa-solid fa-bookmark"></i> <span>วิธีให้ดุอาร์ถูกตอบรับ</span></a></li>
+                        <li><a href="#" class="toc-link" data-page="20"><i class="fa-solid fa-bookmark"></i> <span>ดุอาร์มุสตาญาบ</span></a></li>
+                    `;
+                } else {
+                    tocList.innerHTML = '<li style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem;">ไม่มีข้อมูลสารบัญสำหรับเล่มนี้</li>';
+                }
+            } else {
+                tocList.innerHTML = '';
+                const renderOutline = (items, level = 0) => {
+                    items.forEach(item => {
+                        const li = document.createElement('li');
+                        li.style.paddingLeft = `${level * 10}px`;
+                        const a = document.createElement('a');
+                        a.textContent = item.title;
+                        a.href = "#";
+                        a.onclick = (e) => {
+                            e.preventDefault();
+                            if (typeof item.dest === 'string') {
+                                pdfDoc_.getDestination(item.dest).then(dest => {
+                                    pdfDoc_.getPageIndex(dest[0]).then(idx => {
+                                        pageNum = idx + 1;
+                                        queueRenderPage(pageNum);
+                                        if (window.innerWidth <= 768) sidebar.classList.remove('open');
+                                    });
+                                });
+                            } else if (Array.isArray(item.dest)) {
+                                pdfDoc_.getPageIndex(item.dest[0]).then(idx => {
+                                    pageNum = idx + 1;
+                                    queueRenderPage(pageNum);
+                                    if (window.innerWidth <= 768) sidebar.classList.remove('open');
+                                });
+                            }
+                        };
+                        li.appendChild(a);
+                        tocList.appendChild(li);
+                        if (item.items && item.items.length > 0) {
+                            renderOutline(item.items, level + 1);
+                        }
+                    });
+                };
+                renderOutline(outline);
+            }
+
+            // Add listeners to fallback links
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    pageNum = parseInt(e.currentTarget.getAttribute('data-page'));
+                    queueRenderPage(pageNum);
+                    if (window.innerWidth <= 768) sidebar.classList.remove('open');
+                });
+            });
+
+        } catch (e) {
+            tocList.innerHTML = '<li style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem;">ไม่สามารถโหลดสารบัญได้</li>';
+        }
+    };
+
     const onPDFLoaded = (bookName, pdfDoc_) => {
         pdfCache[bookName] = pdfDoc_;
         if (currentBook === bookName) {
@@ -562,6 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pageNum = 1;
             renderPage(pageNum);
             loadBookmarks();
+            loadTOC(pdfDoc_);
             // Priority pre-render first 5 pages for instant navigation
             prerenderPages(bookName, pdfDoc_, 2, 5, true);
             // Then pages 6-15 quickly
@@ -1142,8 +1232,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Phase 3: Smart Tasbih ---
+    const tasbihRingProgress = document.getElementById('tasbihRingProgress');
     let tasbihCount = parseInt(localStorage.getItem('tasbihCount') || '0');
+
+    const updateTasbihRing = (count) => {
+        if (!tasbihRingProgress) return;
+        const target = 33;
+        const progressCount = count % target;
+        // If count > 0 and progressCount is 0, it means we hit a multiple of 33 (full ring)
+        const percentage = (count > 0 && progressCount === 0) ? 1 : (progressCount / target);
+        const dasharray = 188.5; // 2 * PI * r(30)
+        const offset = dasharray - (dasharray * percentage);
+        tasbihRingProgress.style.strokeDashoffset = offset;
+    };
+
     if (tasbihCountSpan) tasbihCountSpan.textContent = tasbihCount;
+    updateTasbihRing(tasbihCount);
 
     if (tasbihBtn) {
         tasbihBtn.addEventListener('click', () => {
@@ -1154,6 +1258,8 @@ document.addEventListener('DOMContentLoaded', () => {
             tasbihBtn.classList.remove('pulse');
             void tasbihBtn.offsetWidth; // trigger reflow
             tasbihBtn.classList.add('pulse');
+
+            updateTasbihRing(tasbihCount);
 
             if (navigator.vibrate) {
                 if (tasbihCount % 33 === 0) {
@@ -1170,6 +1276,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tasbihCount = 0;
             tasbihCountSpan.textContent = tasbihCount;
             localStorage.setItem('tasbihCount', tasbihCount);
+            updateTasbihRing(tasbihCount);
             if (navigator.vibrate) navigator.vibrate(40);
         });
     }
@@ -1234,8 +1341,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             navigator.serviceWorker.ready.then(reg => {
                                 reg.showNotification('เปิดการแจ้งเตือนสำเร็จ 🎉', {
                                     body: 'แอปจะแจ้งเตือนให้อ่านอัซการในตอนเช้า (06:00-12:00) และเย็น (16:00-20:00)',
-                                    icon: './icon.svg',
-                                    badge: './icon.svg',
+                                    icon: './icon.png',
+                                    badge: './icon.png',
                                     vibrate: [100, 50, 100],
                                     tag: 'setup'
                                 });
@@ -1285,8 +1392,8 @@ document.addEventListener('DOMContentLoaded', () => {
             navigator.serviceWorker.ready.then(reg => {
                 reg.showNotification(title, {
                     body: body,
-                    icon: './icon.svg',
-                    badge: './icon.svg',
+                    icon: './icon.png',
+                    badge: './icon.png',
                     vibrate: [200, 100, 200, 100, 200],
                     tag: tag,
                     data: { url: window.location.href }
@@ -1455,6 +1562,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Auto-load default
     selectBook(currentBook);
+
+    // --- Onboarding Tooltips ---
+    const onboardingTooltip = document.getElementById('onboardingTooltip');
+    const closeTooltipBtn = document.getElementById('closeTooltipBtn');
+
+    if (onboardingTooltip && closeTooltipBtn) {
+        const hasSeenTooltip = localStorage.getItem('hasSeenSwipeTooltip');
+        if (!hasSeenTooltip) {
+            // Show it after a short delay on first load
+            setTimeout(() => {
+                onboardingTooltip.style.display = 'flex';
+            }, 2000);
+
+            closeTooltipBtn.addEventListener('click', () => {
+                onboardingTooltip.style.display = 'none';
+                localStorage.setItem('hasSeenSwipeTooltip', 'true');
+            });
+        }
+    }
 });
 
 // --- Phase 6: PWA Service Worker ---

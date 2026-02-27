@@ -5,7 +5,7 @@ const urlsToCache = [
     './style.css',
     './script.js',
     './manifest.json',
-    './icon.svg',
+    './icon.png',
     // Only pre-cache the small PDF (493KB). The large PDF (69MB) is too big
     // to pre-cache — it will be cached on-demand after first successful load.
     './th_athkar_assabah_walmasaa.pdf',
