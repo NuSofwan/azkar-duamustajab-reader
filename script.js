@@ -1232,6 +1232,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Phase 3: Smart Tasbih ---
+    const tasbihContainer = document.querySelector('.tasbih-container');
+    const toggleTasbihBtn = document.getElementById('toggleTasbihBtn');
+
+    if (toggleTasbihBtn && tasbihContainer) {
+        toggleTasbihBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            tasbihContainer.classList.toggle('show');
+            if (moreToolsMenu) {
+                moreToolsMenu.classList.remove('show');
+            }
+        });
+    }
+
     const tasbihRingProgress = document.getElementById('tasbihRingProgress');
     let tasbihCount = parseInt(localStorage.getItem('tasbihCount') || '0');
 
