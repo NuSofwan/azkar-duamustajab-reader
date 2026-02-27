@@ -896,7 +896,6 @@ input:checked+.slider:before {
     border-radius: 50%;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
     .nav-links {
         display: none;
@@ -918,5 +917,95 @@ input:checked+.slider:before {
 
     .pdf-viewer-wrapper {
         padding: 0.5rem;
+    }
+}
+
+/* ===== Landscape Mode on Mobile ===== */
+@media (max-height: 500px) and (orientation: landscape) {
+
+    /* Compact navbar in landscape */
+    .navbar {
+        padding: 0.35rem 1rem;
+    }
+
+    .logo {
+        font-size: 1.1rem;
+    }
+
+    /* Compact toolbar */
+    .pdf-toolbar {
+        padding: 0.25rem 0.5rem;
+        gap: 0.35rem;
+    }
+
+    .pdf-toolbar .btn {
+        padding: 0.2rem 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .page-info {
+        font-size: 0.8rem;
+        min-width: 70px;
+    }
+
+    .separator {
+        height: 18px;
+        margin: 0 0.25rem;
+    }
+
+    /* Maximize reading area */
+    .pdf-viewer-wrapper {
+        padding: 0.25rem;
+    }
+
+    .pdf-page-container {
+        box-shadow: none;
+    }
+
+    /* Reposition highlight tools for landscape */
+    .highlight-tools.fixed-palette {
+        top: auto;
+        bottom: 8px;
+        left: auto;
+        right: 8px;
+        transform: none;
+        flex-direction: column;
+        padding: 0.35rem;
+        gap: 0.35rem;
+    }
+
+    .highlight-tools.fixed-palette .separator-vertical {
+        width: 16px;
+        height: 1px;
+    }
+
+    /* Compact sidebar in landscape */
+    .sidebar {
+        max-width: 280px;
+    }
+
+    .sidebar-content {
+        padding: 0.75rem;
+    }
+
+    .sidebar-content h3 {
+        font-size: 0.95rem;
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Focus mode: hide navbar & toolbar for maximum reading in landscape */
+@media (max-height: 500px) and (orientation: landscape) {
+    body.focus-mode .navbar {
+        transform: translateY(-100%);
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    body.focus-mode .pdf-toolbar {
+        transform: translateY(-100%);
+        opacity: 0;
+        pointer-events: none;
     }
 }
