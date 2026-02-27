@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azkar Reader</title>
+    <!-- Phase 6: PWA Manifest and Theme Color -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+
+    <!-- iOS PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Azkar">
+    <link rel="apple-touch-icon" href="icon.svg">
+
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header class="navbar">
+        <div class="logo">
+            <i class="fa-solid fa-book-open"></i> Azkar Reader
+        </div>
+        <nav class="nav-links">
+            <button class="book-btn active" data-book="th_athkar_assabah_walmasaa.pdf">อัซการยามเช้าและเย็น</button>
+            <button class="book-btn" data-book="dua_mustajab_th.pdf">ดุอามุสตาญาบ</button>
+        </nav>
+        <div class="nav-controls">
+            <button class="icon-btn theme-toggle" aria-label="Toggle Theme" title="สลับธีมสี">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+            <button class="icon-btn nav-toggle" aria-label="Toggle Menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="mobile-menu">
+        <button class="book-btn active" data-book="th_athkar_assabah_walmasaa.pdf">อัซการยามเช้าและเย็น</button>
+        <button class="book-btn" data-book="dua_mustajab_th.pdf">ดุอามุสตาญาบ</button>
+    </div>
+
+    <main class="main-content">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fa-regular fa-bookmark"></i> เครื่องมือ</h3>
+                <button class="close-sidebar-btn" id="closeSidebar"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="sidebar-content">
+                <!-- Phase 4: Daily Tracking -->
+                <div class="streak-card" id="streakCard">
+                    <i class="fa-solid fa-fire streak-icon inactive" id="streakIcon"></i>
+                    <div class="streak-info">
+                        <h4>การอ่านต่อเนื่อง</h4>
+                        <p id="streakText">อ่านวันนี้เพื่อเริ่มสะสม</p>
+                    </div>
+                    <div class="streak-count" id="streakCount">0 วัน</div>
+                </div>
+
+                <!-- Phase 7: Notifications -->
+                <div class="tools-section">
+                    <h4><i class="fa-regular fa-bell"></i> แจ้งเตือนอัซการ</h4>
+                    <div class="notification-toggle-wrapper">
+                        <span class="toggle-label">เตือนเช้าและเย็น</span>
+                        <label class="switch">
+                            <input type="checkbox" id="notificationToggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Phase 3: Bookmarks -->
+                <div class="tools-section">
+                    <h4>บุ๊กมาร์ก</h4>
+                    <button id="addBookmarkBtn" class="primary-btn w-full"><i class="fa-solid fa-bookmark"></i>
+                        คั่นหน้านี้</button>
+                    <ul id="bookmarksList" class="bookmarks-list"></ul>
+                </div>
+                <!-- Phase 3: Notes -->
+                <div class="tools-section">
+                    <h4>จดบันทึก (หน้า <span id="notePageNum">1</span>)</h4>
+                    <textarea id="pageNoteInput" rows="5" placeholder="พิมพ์บันทึกของคุณที่นี่..."></textarea>
+                    <button id="saveNoteBtn" class="primary-btn mt-2 w-full">บันทึกเนื้อหา</button>
+                    <p id="noteSaveStatus" class="status-msg"></p>
+                </div>
+            </div>
+        </aside>
+
+        <section class="reader-area" id="readerArea">
+            <div class="placeholder" id="placeholder">
+                <i class="fa-solid fa-spinner fa-spin empty-icon" style="color: var(--accent);"></i>
+                <h2>กำลังโหลดหนังสือ...</h2>
+                <p>โปรดรอสักครู่</p>
+            </div>
+
+            <div class="pdf-container" id="pdfContainer" style="display: none;">
+                <!-- Toolbar for PDF -->
+                <div class="pdf-toolbar">
+                    <button id="prevPage" class="icon-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="page-info">
+                        หน้า <select id="pageNumSelect" class="page-select" aria-label="เลือกหน้า"></select>
+                        / <span id="pageCount">-</span>
+                    </span>
+                    <button id="nextPage" class="icon-btn"><i class="fa-solid fa-chevron-right"></i></button>
+                    <div class="separator"></div>
+                    <button id="zoomOut" class="icon-btn" title="ย่อ"><i
+                            class="fa-solid fa-magnifying-glass-minus"></i></button>
+                    <button id="zoomIn" class="icon-btn" title="ขยาย"><i
+                            class="fa-solid fa-magnifying-glass-plus"></i></button>
+                    <div class="separator"></div>
+                    <!-- Navigation Mode Toggle -->
+                    <button id="navModeBtn" class="icon-btn" title="โหมดเลื่อนหน้า: เลื่อนลง"><i
+                            class="fa-solid fa-arrows-up-down"></i></button>
+                    <!-- Phase 5: Translation Demo -->
+                    <button id="toggleTranslationBtn" class="icon-btn" title="แปลภาษา (ตัวอย่าง)"><i
+                            class="fa-solid fa-language"></i></button>
+                    <button id="toggleSidebarBtn" class="icon-btn" title="เปิดหน้าต่างเครื่องมือ"><i
+                            class="fa-solid fa-pen-to-square"></i></button>
+                </div>
+
+                <!-- Phase 4: Highlight Color Picker & Phase 5: Memorization Mask -->
+                <div id="highlightTools" class="highlight-tools" style="display: none;">
+                    <button class="hl-color" style="background: rgba(255, 255, 0, 0.4);"
+                        data-color="rgba(255, 255, 0, 0.4)" title="เหลือง"></button>
+                    <button class="hl-color" style="background: rgba(144, 238, 144, 0.4);"
+                        data-color="rgba(144, 238, 144, 0.4)" title="เขียว"></button>
+                    <button class="hl-color" style="background: rgba(173, 216, 230, 0.4);"
+                        data-color="rgba(173, 216, 230, 0.4)" title="ฟ้า"></button>
+                    <button class="hl-color" style="background: rgba(255, 182, 193, 0.4);"
+                        data-color="rgba(255, 182, 193, 0.4)" title="ชมพู"></button>
+                    <div class="separator-vertical"></div>
+                    <button class="hl-color mask-color-btn" style="background: #1e293b;" data-color="#1e293b_mask"
+                        title="โหมดท่องจำ (ปิดข้อความ)">
+                        <i class="fa-solid fa-eye-slash" style="color:white; font-size:0.7rem;"></i>
+                    </button>
+                </div>
+
+                <div class="pdf-viewer-wrapper" id="pdfViewerWrapper">
+                    <div id="pdfPageContainer" class="pdf-page-container">
+                        <!-- Phase 2: PDF Rendering -->
+                        <canvas id="pdfCanvas"></canvas>
+                        <!-- Phase 4: Highlight Layer -->
+                        <div id="highlightLayer" class="highlightLayer"></div>
+                        <!-- Phase 4: Text Layer for selection -->
+                        <div id="textLayer" class="textLayer"></div>
+
+                        <!-- Phase 5: Translation Layer -->
+                        <div id="translationLayer" class="translationLayer" style="display:none;">
+                            <div class="translation-box">
+                                <h3><i class="fa-solid fa-language"></i> English Translation (Phase 5 Demo)</h3>
+                                <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border);">
+                                <p style="margin-bottom: 0.5rem;">This is a demonstration of the translation overlay for
+                                    page <strong><span id="transPageNum">1</span></strong>.</p>
+                                <p style="font-size: 0.95rem; color: var(--text-secondary);">In a complete
+                                    implementation, precise translation data from a JSON source would be mapped to
+                                    specific Arabic/Thai texts.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Phase 3: Smart Tasbih -->
+        <div class="tasbih-container">
+            <button class="tasbih-btn" id="tasbihBtn" aria-label="Tasbih Counter">
+                <span class="tasbih-count" id="tasbihCount">0</span>
+                <span class="tasbih-icon"><i class="fa-solid fa-hand-holding-heart"></i></span>
+            </button>
+            <button class="tasbih-reset" id="tasbihReset" title="รีเซ็ตตัวนับ">รีเซ็ต</button>
+        </div>
+    </main>
+
+    <!-- Phase 2: PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+    <script src="script.js"></script>
+</body>
+
+</html>
