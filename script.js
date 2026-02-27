@@ -27,7 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const pdfViewerWrapper = document.getElementById('pdfViewerWrapper');
     const pdfPageContainer = document.getElementById('pdfPageContainer');
     const textLayerDiv = document.getElementById('textLayer');
-    const highlightLayerDiv = document.getElementById('highlightLayer');
+    const highlightCanvas = document.getElementById('highlightLayer');
+    const highlightCtx = highlightCanvas.getContext('2d');
 
     const addBookmarkBtn = document.getElementById('addBookmarkBtn');
     const bookmarksList = document.getElementById('bookmarksList');
@@ -35,12 +36,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const pageNoteInput = document.getElementById('pageNoteInput');
     const saveNoteBtn = document.getElementById('saveNoteBtn');
     const noteSaveStatus = document.getElementById('noteSaveStatus');
+    const notesHistoryList = document.getElementById('notesHistoryList');
 
     // Phase 4 & 5 Extra Elements
     const highlightTools = document.getElementById('highlightTools');
-    const translationLayer = document.getElementById('translationLayer');
-    const toggleTranslationBtn = document.getElementById('toggleTranslationBtn');
-    const transPageNum = document.getElementById('transPageNum');
+    const toggleHighlightModeBtn = document.getElementById('toggleHighlightModeBtn');
+    const closeHighlightModeBtn = document.getElementById('closeHighlightModeBtn');
+    const hlUndoBtn = document.getElementById('hlUndoBtn');
+    const hlEraserBtn = document.getElementById('hlEraserBtn');
+
+
 
     // Phase 3 & 4 Pro Features Elements
     const tasbihBtn = document.getElementById('tasbihBtn');
@@ -59,7 +64,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let pageRendering = false;
     let pageNumPending = null;
     let scale = 1.3; // Allow zooming
-    let currentSelectionRange = null;
+
+    // Freehand Highlight State
+    let isHighlightMode = false;
+    let isDrawing = false;
+    let currentHighlightColor = 'rgba(255, 255, 0, 0.6)';
+    let isEraserMode = false;
+    let currentStroke = []; // Array of {x, y}
+    let strokeWidth = parseInt(localStorage.getItem('hlStrokeWidth') || '20');
+
+    // Text Selection State
+    let selectedText = '';
+    let selectedTextRect = null;
 
     // Navigation mode: 'scroll' or 'swipe'
     let navMode = localStorage.getItem('navMode') || 'scroll';
@@ -126,6 +142,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 pdfCanvas.style.height = data.cssH + 'px';
                 pdfPageContainer.style.width = data.cssW + 'px';
                 pdfPageContainer.style.height = data.cssH + 'px';
+
+                // Sync the highlight layer!
+                highlightCanvas.width = img.width;
+                highlightCanvas.height = img.height;
+                highlightCanvas.style.width = data.cssW + 'px';
+                highlightCanvas.style.height = data.cssH + 'px';
+
                 pdfCtx.drawImage(img, 0, 0);
                 URL.revokeObjectURL(url);
                 resolve();
@@ -193,97 +216,149 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- PDF Rendering (Phase 2) ---
+    let currentRenderVersion = 0; // Incremented on each render to discard stale results
+
+    const applyCanvasDimensions = (backingW, backingH, cssW, cssH) => {
+        pdfCanvas.width = backingW;
+        pdfCanvas.height = backingH;
+        pdfCanvas.style.width = cssW + 'px';
+        pdfCanvas.style.height = cssH + 'px';
+        pdfPageContainer.style.width = cssW + 'px';
+        pdfPageContainer.style.height = cssH + 'px';
+        highlightCanvas.width = backingW;
+        highlightCanvas.height = backingH;
+        highlightCanvas.style.width = cssW + 'px';
+        highlightCanvas.style.height = cssH + 'px';
+    };
+
     const renderPage = (num) => {
         pageRendering = true;
+        currentRenderVersion++;
+        const thisVersion = currentRenderVersion;
+
+        // Helper: finish rendering and process pending
+        const finishRender = () => {
+            pageRendering = false;
+            if (pageNumPending !== null) {
+                const pending = pageNumPending;
+                pageNumPending = null;
+                renderPage(pending);
+            }
+        };
+
+        // Helper: check if this render is still valid
+        const isStale = () => thisVersion !== currentRenderVersion;
 
         // Check in-memory cache first (instant)
         const cacheKey = `${currentBook}_${num}_${scale}`;
         if (pageCanvasCache[cacheKey]) {
             const cached = pageCanvasCache[cacheKey];
-            pdfCanvas.width = cached.bitmap.width;
-            pdfCanvas.height = cached.bitmap.height;
-            pdfCanvas.style.width = cached.cssWidth + "px";
-            pdfCanvas.style.height = cached.cssHeight + "px";
-            pdfPageContainer.style.width = cached.cssWidth + "px";
-            pdfPageContainer.style.height = cached.cssHeight + "px";
+            applyCanvasDimensions(cached.bitmap.width, cached.bitmap.height, cached.cssWidth, cached.cssHeight);
             pdfCtx.imageSmoothingEnabled = true;
             pdfCtx.imageSmoothingQuality = 'high';
             pdfCtx.drawImage(cached.bitmap, 0, 0);
-            pageRendering = false;
-            if (pageNumPending !== null) { renderPage(pageNumPending); pageNumPending = null; }
-            if (pdfDoc) {
-                pdfDoc.getPage(num).then(page => {
-                    const viewport = page.getViewport({ scale: scale });
-                    return page.getTextContent().then(tc => { buildTextLayer(tc, viewport); loadHighlights(num); });
-                });
-            }
-            // Update Page Select Dropdown
+            loadHighlights(num);
+
+            // Update UI
             pageNumSelect.value = num;
             notePageNum.textContent = num;
             loadNoteForCurrentPage();
-            highlightTools.style.display = 'none';
-            translationLayer.style.display = 'none';
+            updateNotesHistoryList();
+            if (!isHighlightMode) highlightTools.style.display = 'none';
+
+            finishRender();
+
+            // Load text layer in background
+            if (pdfDoc) {
+                pdfDoc.getPage(num).then(page => {
+                    if (isStale()) return;
+                    const viewport = page.getViewport({ scale });
+                    return page.getTextContent().then(tc => { if (!isStale()) buildTextLayer(tc, viewport); });
+                }).catch(() => { });
+            }
             return;
         }
 
-        // Check IndexedDB cache (very fast, ~5ms)
+        // Update UI immediately (even before async loads)
+        pageNumSelect.value = num;
+        notePageNum.textContent = num;
+        loadNoteForCurrentPage();
+        updateNotesHistoryList();
+        if (!isHighlightMode) highlightTools.style.display = 'none';
+
+        // Try IndexedDB cache, then fall back to full PDF render
         const bookForRender = currentBook;
         idbLoadPage(currentBook, num).then(cached => {
+            if (isStale()) { finishRender(); return; }
+
             if (cached && currentBook === bookForRender) {
-                // Draw from IndexedDB cache instantly
+                // Draw from IndexedDB cache
                 return drawCachedImage(cached).then(() => {
-                    pageRendering = false;
-                    if (pageNumPending !== null) { renderPage(pageNumPending); pageNumPending = null; }
-                    // Load text layer in background for selection
+                    if (isStale()) { finishRender(); return; }
+                    loadHighlights(num);
+                    finishRender();
+                    // Load text layer in background
                     if (pdfDoc) {
                         pdfDoc.getPage(num).then(page => {
-                            const viewport = page.getViewport({ scale: scale });
-                            return page.getTextContent().then(tc => { buildTextLayer(tc, viewport); loadHighlights(num); });
-                        });
+                            if (isStale()) return;
+                            const viewport = page.getViewport({ scale });
+                            return page.getTextContent().then(tc => { if (!isStale()) buildTextLayer(tc, viewport); });
+                        }).catch(() => { });
                     }
                 });
             }
 
             // No cache — render from PDF
-            if (!pdfDoc) { pageRendering = false; return; }
-            pdfDoc.getPage(num).then((page) => {
-                const viewport = page.getViewport({ scale: scale });
+            if (!pdfDoc) { finishRender(); return; }
+            return pdfDoc.getPage(num).then((page) => {
+                if (isStale()) { finishRender(); return; }
+
+                const viewport = page.getViewport({ scale });
                 const outputScale = getOutputScale(viewport.width, viewport.height);
-                pdfCanvas.width = Math.floor(viewport.width * outputScale);
-                pdfCanvas.height = Math.floor(viewport.height * outputScale);
-                pdfCanvas.style.width = Math.floor(viewport.width) + "px";
-                pdfCanvas.style.height = Math.floor(viewport.height) + "px";
-                pdfPageContainer.style.width = Math.floor(viewport.width) + "px";
-                pdfPageContainer.style.height = Math.floor(viewport.height) + "px";
-                pdfCtx.imageSmoothingEnabled = true;
-                pdfCtx.imageSmoothingQuality = 'high';
+                const finalWidth = Math.floor(viewport.width * outputScale);
+                const finalHeight = Math.floor(viewport.height * outputScale);
+                const cssW = Math.floor(viewport.width);
+                const cssH = Math.floor(viewport.height);
+
+                // Create offscreen canvas for rendering (keeps old image visible)
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = finalWidth;
+                offCanvas.height = finalHeight;
+                const offCtx = offCanvas.getContext('2d');
+                offCtx.imageSmoothingEnabled = true;
+                offCtx.imageSmoothingQuality = 'high';
+
                 const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
-                const renderContext = { canvasContext: pdfCtx, transform: transform, viewport: viewport };
 
-                page.render(renderContext).promise.then(() => {
-                    // Cache in memory
-                    createImageBitmap(pdfCanvas).then(bitmap => {
-                        pageCanvasCache[cacheKey] = { bitmap, cssWidth: Math.floor(viewport.width), cssHeight: Math.floor(viewport.height) };
-                    }).catch(() => { });
-                    // Cache in IndexedDB for instant loading next time
-                    idbSavePage(currentBook, num, pdfCanvas, Math.floor(viewport.width), Math.floor(viewport.height));
+                return page.render({ canvasContext: offCtx, transform, viewport }).promise.then(() => {
+                    if (isStale()) { finishRender(); return; }
 
-                    pageRendering = false;
-                    if (pageNumPending !== null) { renderPage(pageNumPending); pageNumPending = null; }
-                    return page.getTextContent();
-                }).then((textContent) => {
-                    buildTextLayer(textContent, viewport);
+                    // Apply offscreen buffer to real canvas
+                    applyCanvasDimensions(finalWidth, finalHeight, cssW, cssH);
+                    pdfCtx.imageSmoothingEnabled = true;
+                    pdfCtx.imageSmoothingQuality = 'high';
+                    pdfCtx.drawImage(offCanvas, 0, 0);
                     loadHighlights(num);
+
+                    // Cache in memory
+                    createImageBitmap(offCanvas).then(bitmap => {
+                        pageCanvasCache[cacheKey] = { bitmap, cssWidth: cssW, cssHeight: cssH };
+                    }).catch(() => { });
+                    // Cache in IndexedDB
+                    idbSavePage(currentBook, num, offCanvas, cssW, cssH);
+
+                    finishRender();
+                    return page.getTextContent();
+                }).then(textContent => {
+                    if (textContent && textContent.items && !isStale()) {
+                        buildTextLayer(textContent, viewport);
+                    }
                 });
             });
+        }).catch(err => {
+            console.error("renderPage error:", err);
+            finishRender();
         });
-
-        // Update Page Select Dropdown
-        pageNumSelect.value = num;
-        notePageNum.textContent = num;
-        loadNoteForCurrentPage();
-        highlightTools.style.display = 'none';
-        translationLayer.style.display = 'none';
     };
 
     // Helper: build text layer from text content
@@ -338,8 +413,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    zoomInBtn.addEventListener('click', () => { scale += 0.2; queueRenderPage(pageNum); });
-    zoomOutBtn.addEventListener('click', () => { if (scale > 0.5) { scale -= 0.2; queueRenderPage(pageNum); } });
+    zoomInBtn.addEventListener('click', () => {
+        scale = Math.round((scale + 0.2) * 10) / 10;
+        // Force immediate render — the version counter discards stale results
+        pageRendering = false;
+        pageNumPending = null;
+        renderPage(pageNum);
+    });
+    zoomOutBtn.addEventListener('click', () => {
+        if (scale > 0.5) {
+            scale = Math.round((scale - 0.2) * 10) / 10;
+            pageRendering = false;
+            pageNumPending = null;
+            renderPage(pageNum);
+        }
+    });
 
     // Phase 2 Fix: Cache loaded PDF documents to make tab switching instant
     const pdfCache = {};
@@ -379,12 +467,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     createImageBitmap(offCanvas).then(bitmap => {
                         pageCanvasCache[cacheKey] = { bitmap, cssWidth: Math.floor(viewport.width), cssHeight: Math.floor(viewport.height) };
                     }).catch(() => { });
-                });
+                }).catch(err => console.warn("BgRender Cancelled:", err));
             }).then(() => {
                 bgRendering = false;
                 // Small delay to avoid blocking the main thread
                 setTimeout(bgRenderNext, 50);
-            }).catch(() => {
+            }).catch(err => {
+                console.warn("BgRender getPage Error:", err);
                 bgRendering = false;
                 setTimeout(bgRenderNext, 100);
             });
@@ -486,7 +575,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 document.getElementById('filePickerBtn').addEventListener('click', () => {
                     loadPDFViaFilePicker(bookName).then(data => {
-                        return pdfjsLib.getDocument({ data: data }).promise;
+                        return pdfjsLib.getDocument({
+                            data: data,
+                            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
+                            cMapPacked: true,
+                        }).promise;
                     }).then(pdfDoc_ => {
                         onPDFLoaded(bookName, pdfDoc_);
                         placeholder.style.display = 'none';
@@ -512,7 +605,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const promise = pdfjsLib.getDocument({
             url: pdfUrl,
             disableAutoFetch: true,
-            disableStream: false
+            disableStream: false,
+            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
+            cMapPacked: true,
         }).promise.then(pdfDoc_ => {
             pdfCache[bookName] = pdfDoc_;
             // Pre-render first 10 pages in background
@@ -521,7 +616,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }).catch(err => {
             console.warn('Range-request PDF load failed, trying full download...', err);
             return loadFileAsArrayBuffer(pdfUrl).then(data => {
-                return pdfjsLib.getDocument({ data: data }).promise;
+                return pdfjsLib.getDocument({
+                    data: data,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
+                    cMapPacked: true,
+                }).promise;
             }).then(pdfDoc_ => {
                 pdfCache[bookName] = pdfDoc_;
                 prerenderPages(bookName, pdfDoc_, 1, 10);
@@ -576,7 +675,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ALWAYS clear old page immediately and show loading spinner
         textLayerDiv.innerHTML = '';
-        highlightLayerDiv.innerHTML = '';
+        if (highlightCtx) highlightCtx.clearRect(0, 0, highlightCanvas.width, highlightCanvas.height);
         pdfCtx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
 
         // Show a small "กำลังโหลด..." text on canvas while waiting
@@ -620,11 +719,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveNoteBtn.addEventListener('click', () => {
         const notesObj = JSON.parse(localStorage.getItem(getStorageKey('notes')) || '{}');
-        notesObj[pageNum] = pageNoteInput.value;
+        const content = pageNoteInput.value.trim();
+        if (content) {
+            notesObj[pageNum] = content;
+        } else {
+            delete notesObj[pageNum];
+        }
         localStorage.setItem(getStorageKey('notes'), JSON.stringify(notesObj));
         noteSaveStatus.textContent = 'บันทึกเรียบร้อย';
+        updateNotesHistoryList();
         setTimeout(() => noteSaveStatus.textContent = '', 2000);
     });
+
+    // Phase 8: Note History List
+    const updateNotesHistoryList = () => {
+        if (!notesHistoryList) return;
+
+        const notesObj = JSON.parse(localStorage.getItem(getStorageKey('notes')) || '{}');
+        const pagesWithNotes = Object.keys(notesObj).map(Number).sort((a, b) => a - b);
+
+        notesHistoryList.innerHTML = '';
+
+        if (pagesWithNotes.length === 0) {
+            notesHistoryList.innerHTML = '<li style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem;">ไม่มีประวัติการจดบันทึก</li>';
+            return;
+        }
+
+        pagesWithNotes.forEach(page => {
+            const snippet = notesObj[page].length > 20 ? notesObj[page].substring(0, 20) + "..." : notesObj[page];
+
+            const li = document.createElement('li');
+
+            const a = document.createElement('a');
+            a.innerHTML = `<i class="fa-regular fa-note-sticky" style="margin-right:0.5rem;"></i> หน้า ${page} - "${snippet}"`;
+            a.title = notesObj[page]; // Show full text on hover
+            a.addEventListener('click', () => {
+                pageNum = page;
+                queueRenderPage(pageNum);
+                if (window.innerWidth <= 768) sidebar.classList.remove('open');
+            });
+
+            const delBtn = document.createElement('button');
+            delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+            delBtn.title = "ลบบันทึกหน้านี้";
+            delBtn.addEventListener('click', () => {
+                if (confirm(`คุณต้องการลบบันทึกหน้า ${page} ใช่หรือไม่?`)) {
+                    const currentNotes = JSON.parse(localStorage.getItem(getStorageKey('notes')) || '{}');
+                    delete currentNotes[page];
+                    localStorage.setItem(getStorageKey('notes'), JSON.stringify(currentNotes));
+                    updateNotesHistoryList(); // Refresh UI
+                    if (page === pageNum) {
+                        pageNoteInput.value = ''; // Clear text if currently on that page
+                    }
+                }
+            });
+
+            li.appendChild(a);
+            li.appendChild(delBtn);
+            notesHistoryList.appendChild(li);
+        });
+    };
+
 
     const loadBookmarks = () => {
         const bms = JSON.parse(localStorage.getItem(getStorageKey('bookmarks')) || '[]');
@@ -665,114 +820,231 @@ document.addEventListener('DOMContentLoaded', () => {
         loadBookmarks();
     };
 
-    // --- Highlighting (Phase 4) ---
-    document.addEventListener('selectionchange', () => {
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0 && selection.toString().trim().length > 0) {
-            // Check if selection is inside textLayer
-            if (textLayerDiv.contains(selection.anchorNode)) {
-                const range = selection.getRangeAt(0);
-                const rect = range.getBoundingClientRect();
-                const containerRect = pdfViewerWrapper.getBoundingClientRect();
+    // --- Highlighting (Phase 4 v2 - Freehand Canvas) ---
 
-                highlightTools.style.display = 'flex';
-                // Center tool above selection relative to wrapper
-                const scrollLeft = pdfViewerWrapper.scrollLeft;
-                const scrollTop = pdfViewerWrapper.scrollTop;
-                highlightTools.style.left = `${rect.left - containerRect.left + (rect.width / 2) + scrollLeft}px`;
-                highlightTools.style.top = `${rect.top - containerRect.top + scrollTop}px`;
-
-                currentSelectionRange = range.cloneRange();
-            }
+    // Toggle Highlighter Mode
+    toggleHighlightModeBtn.addEventListener('click', () => {
+        isHighlightMode = !isHighlightMode;
+        if (isHighlightMode) {
+            highlightTools.style.display = 'flex';
+            toggleHighlightModeBtn.classList.add('active');
+            highlightCanvas.classList.add('drawing-mode');
+            textLayerDiv.classList.add('drawing-mode'); // Disable text selection
         } else {
             highlightTools.style.display = 'none';
+            toggleHighlightModeBtn.classList.remove('active');
+            highlightCanvas.classList.remove('drawing-mode');
+            textLayerDiv.classList.remove('drawing-mode');
         }
     });
 
-    document.querySelectorAll('.hl-color').forEach(btn => {
+    closeHighlightModeBtn.addEventListener('click', () => {
+        isHighlightMode = false;
+        highlightTools.style.display = 'none';
+        toggleHighlightModeBtn.classList.remove('active');
+        highlightCanvas.classList.remove('drawing-mode');
+        textLayerDiv.classList.remove('drawing-mode');
+    });
+
+    // Tool Selection (Colors and Eraser)
+    document.querySelectorAll('.hl-color:not(.tool-btn)').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const color = e.target.getAttribute('data-color');
-            if (currentSelectionRange) {
-                saveHighlight(currentSelectionRange, color);
-                window.getSelection().removeAllRanges();
-                highlightTools.style.display = 'none';
-                loadHighlights(pageNum);
-            }
+            document.querySelectorAll('.hl-color').forEach(b => b.classList.remove('active-color'));
+            btn.classList.add('active-color');
+            currentHighlightColor = btn.getAttribute('data-color');
+            isEraserMode = false;
         });
     });
 
-    const saveHighlight = (range, color) => {
-        const rects = range.getClientRects();
-        const containerRect = pdfPageContainer.getBoundingClientRect();
+    hlEraserBtn.addEventListener('click', () => {
+        document.querySelectorAll('.hl-color').forEach(b => b.classList.remove('active-color'));
+        hlEraserBtn.classList.add('active-color');
+        isEraserMode = true;
+    });
 
+    // Undo Feature
+    hlUndoBtn.addEventListener('click', () => {
+        let hls = JSON.parse(localStorage.getItem(getStorageKey('highlights')) || '{}');
+        if (hls[pageNum] && hls[pageNum].length > 0) {
+            hls[pageNum].pop(); // Remove last stroke
+            localStorage.setItem(getStorageKey('highlights'), JSON.stringify(hls));
+            loadHighlights(pageNum);
+        }
+    });
+
+    // Stroke Width Slider Feature
+    const hlWidthSlider = document.getElementById('hlWidthSlider');
+    if (hlWidthSlider) {
+        hlWidthSlider.value = strokeWidth;
+        hlWidthSlider.addEventListener('input', (e) => {
+            strokeWidth = parseInt(e.target.value);
+            localStorage.setItem('hlStrokeWidth', strokeWidth);
+        });
+    }
+
+    // Canvas Drawing Logic
+    const getPointerPos = (e) => {
+        const rect = highlightCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        // Scale to actual canvas coordinate space
+        return {
+            x: (clientX - rect.left) * (highlightCanvas.width / rect.width),
+            y: (clientY - rect.top) * (highlightCanvas.height / rect.height)
+        };
+    };
+
+    const startDrawing = (e) => {
+        if (!isHighlightMode) return;
+        e.preventDefault();
+        isDrawing = true;
+        const pos = getPointerPos(e);
+        currentStroke = [pos];
+
+        // Calculate stroke width multiplier once at start
+        const cssWidth = parseFloat(highlightCanvas.style.width) || highlightCanvas.width;
+        const multiplierX = highlightCanvas.width / (cssWidth / scale);
+
+        // Setup context for this entire stroke
+        if (isEraserMode) {
+            highlightCtx.globalCompositeOperation = 'destination-out';
+            highlightCtx.lineWidth = strokeWidth * multiplierX * 1.5;
+            highlightCtx.strokeStyle = 'rgba(0,0,0,1)';
+        } else {
+            highlightCtx.globalCompositeOperation = 'source-over';
+            highlightCtx.lineWidth = strokeWidth * multiplierX;
+            highlightCtx.strokeStyle = currentHighlightColor;
+        }
+        highlightCtx.lineCap = 'round';
+        highlightCtx.lineJoin = 'round';
+
+        highlightCtx.beginPath();
+        highlightCtx.moveTo(pos.x, pos.y);
+    };
+
+    const draw = (e) => {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const pos = getPointerPos(e);
+        currentStroke.push(pos);
+
+        highlightCtx.lineTo(pos.x, pos.y);
+        highlightCtx.stroke();
+        // Continue from the current point (avoid re-stroking old segments)
+        highlightCtx.beginPath();
+        highlightCtx.moveTo(pos.x, pos.y);
+    };
+
+    const stopDrawing = () => {
+        if (!isDrawing) return;
+        isDrawing = false;
+        highlightCtx.closePath();
+        highlightCtx.globalCompositeOperation = 'source-over';
+
+        if (currentStroke.length > 0) {
+            saveStroke(currentStroke, isEraserMode ? 'eraser' : currentHighlightColor);
+            console.log('[Highlight] Saved stroke with', currentStroke.length, 'points to page', pageNum);
+        }
+        currentStroke = [];
+        // DON'T call loadHighlights here — the live draw is already on the canvas.
+        // loadHighlights will run automatically on next page render/zoom.
+    };
+
+    highlightCanvas.addEventListener('mousedown', startDrawing);
+    highlightCanvas.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', stopDrawing);
+
+    highlightCanvas.addEventListener('touchstart', startDrawing, { passive: false });
+    highlightCanvas.addEventListener('touchmove', draw, { passive: false });
+    window.addEventListener('touchend', stopDrawing);
+    highlightCanvas.addEventListener('touchcancel', stopDrawing);
+
+    const saveStroke = (points, color) => {
         let hls = JSON.parse(localStorage.getItem(getStorageKey('highlights')) || '{}');
         if (!hls[pageNum]) hls[pageNum] = [];
 
-        // Save relative to base scale 1.0 so we can re-render at any scale
-        const relativeRects = Array.from(rects).map(r => ({
-            top: (r.top - containerRect.top) / scale,
-            left: (r.left - containerRect.left) / scale,
-            width: r.width / scale,
-            height: r.height / scale,
-            color: color,
-            isMask: color.endsWith('_mask') // Flag for phase 5 feature
+        // Save relative to scale 1.0 (CSS width/height relative)
+        // Note: the points in currentStroke are in canvas coordinate space
+        // which includes devicePixelRatio/outputScale. We must normalize them to CSS space
+        // at scale=1.0.
+        // Wait, outputScale = highlightCanvas.width / highlightCanvas.style.width (in px)
+        const cssWidth = parseFloat(highlightCanvas.style.width);
+        const ratioX = (cssWidth / scale) / highlightCanvas.width;
+        const ratioY = (parseFloat(highlightCanvas.style.height) / scale) / highlightCanvas.height;
+
+        const normalizedPoints = points.map(p => ({
+            x: p.x * ratioX,
+            y: p.y * ratioY
         }));
 
-        hls[pageNum].push(...relativeRects);
+        hls[pageNum].push({
+            color: color,
+            points: normalizedPoints,
+            width: strokeWidth
+        });
         localStorage.setItem(getStorageKey('highlights'), JSON.stringify(hls));
     };
 
     const loadHighlights = (num) => {
-        highlightLayerDiv.innerHTML = '';
-        const hls = JSON.parse(localStorage.getItem(getStorageKey('highlights')) || '{}');
-        if (hls[num]) {
-            hls[num].forEach(rect => {
-                const div = document.createElement('div');
-                div.className = 'highlight-rect';
+        // Reset context state FIRST
+        highlightCtx.globalCompositeOperation = 'source-over';
+        highlightCtx.clearRect(0, 0, highlightCanvas.width, highlightCanvas.height);
 
-                if (rect.isMask) {
-                    div.classList.add('memorization-mask');
-                    div.style.backgroundColor = rect.color.replace('_mask', '');
-                } else {
-                    div.style.backgroundColor = rect.color;
-                }
+        const storageKey = getStorageKey('highlights');
+        const hls = JSON.parse(localStorage.getItem(storageKey) || '{}');
 
-                div.style.left = `${rect.left * scale}px`;
-                div.style.top = `${rect.top * scale}px`;
-                div.style.width = `${rect.width * scale}px`;
-                div.style.height = `${rect.height * scale}px`;
-                highlightLayerDiv.appendChild(div);
-            });
+        if (!hls[num] || !Array.isArray(hls[num])) return;
+
+        // Filter out corrupted entries (missing or empty points)
+        const validStrokes = hls[num].filter(s => s && Array.isArray(s.points) && s.points.length > 0);
+
+        // If we cleaned up corrupted data, save the clean version
+        if (validStrokes.length !== hls[num].length) {
+            console.warn('[loadHighlights] Cleaned', hls[num].length - validStrokes.length, 'corrupted stroke(s) on page', num);
+            hls[num] = validStrokes;
+            localStorage.setItem(storageKey, JSON.stringify(hls));
         }
+
+        if (validStrokes.length === 0) return;
+
+        const cssWidth = parseFloat(highlightCanvas.style.width);
+        const cssHeight = parseFloat(highlightCanvas.style.height);
+        if (isNaN(cssWidth) || isNaN(cssHeight) || cssWidth === 0 || cssHeight === 0) return;
+
+        const ratioX = highlightCanvas.width / (cssWidth / scale);
+        const ratioY = highlightCanvas.height / (cssHeight / scale);
+
+        validStrokes.forEach(stroke => {
+            if (stroke.color === 'eraser') {
+                highlightCtx.globalCompositeOperation = 'destination-out';
+                highlightCtx.lineWidth = stroke.width * ratioX * 1.5;
+                highlightCtx.strokeStyle = 'rgba(0,0,0,1)';
+            } else {
+                highlightCtx.globalCompositeOperation = 'source-over';
+                highlightCtx.lineWidth = stroke.width * ratioX;
+                highlightCtx.strokeStyle = stroke.color;
+            }
+            highlightCtx.lineCap = 'round';
+            highlightCtx.lineJoin = 'round';
+
+            highlightCtx.beginPath();
+            highlightCtx.moveTo(stroke.points[0].x * ratioX, stroke.points[0].y * ratioY);
+            for (let i = 1; i < stroke.points.length; i++) {
+                highlightCtx.lineTo(stroke.points[i].x * ratioX, stroke.points[i].y * ratioY);
+            }
+            highlightCtx.stroke();
+            highlightCtx.closePath();
+        });
+        highlightCtx.globalCompositeOperation = 'source-over'; // reset
     };
 
-    // Phase 5: Delegated click handler for Memorization Masks
-    highlightLayerDiv.addEventListener('click', (e) => {
-        if (e.target.classList.contains('memorization-mask')) {
-            e.target.classList.toggle('revealed');
-        }
-    });
 
-    // --- Translation (Phase 5) ---
-    toggleTranslationBtn.addEventListener('click', () => {
-        transPageNum.textContent = pageNum;
-        if (translationLayer.style.display === 'none') translationLayer.style.display = 'flex';
-        else translationLayer.style.display = 'none';
-    });
-
-    translationLayer.addEventListener('click', (e) => {
-        // close if clicked outside the box
-        if (e.target === translationLayer) {
-            translationLayer.style.display = 'none';
-        }
-    });
 
     // --- Phase 2: Focus Mode ---
     let isFocusMode = false;
     pdfPageContainer.addEventListener('click', (e) => {
-        // Prevent toggle if clicking on highlight tools or translating
-        if (e.target.closest('#highlightTools') || e.target.closest('#translationLayer')) return;
+        // Prevent toggle if clicking on highlight tools
+        if (e.target.closest('#highlightTools')) return;
 
         // Prevent toggle if text is selected
         const selection = window.getSelection();

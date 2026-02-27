@@ -27,7 +27,7 @@
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-880D9JST3X"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
+        function gtag() { dataLayer.push(arguments); }
         gtag('js', new Date());
 
         gtag('config', 'G-880D9JST3X');
@@ -100,6 +100,17 @@
                     <textarea id="pageNoteInput" rows="5" placeholder="พิมพ์บันทึกของคุณที่นี่..."></textarea>
                     <button id="saveNoteBtn" class="primary-btn mt-2 w-full">บันทึกเนื้อหา</button>
                     <p id="noteSaveStatus" class="status-msg"></p>
+
+                    <!-- Phase 8: Note History -->
+                    <div style="margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                        <span class="badge" style="margin-bottom: 0.5rem; display: inline-block;">
+                            <i class="fa-solid fa-clock-rotate-left"></i> ประวัติที่จดบันทึกไว้
+                        </span>
+                        <ul class="bookmarks-list" id="notesHistoryList" style="margin-top: 0.5rem;">
+                            <li style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem;">
+                                ไม่มีประวัติการจดบันทึก</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </aside>
@@ -129,27 +140,47 @@
                     <!-- Navigation Mode Toggle -->
                     <button id="navModeBtn" class="icon-btn" title="โหมดเลื่อนหน้า: เลื่อนลง"><i
                             class="fa-solid fa-arrows-up-down"></i></button>
-                    <!-- Phase 5: Translation Demo -->
-                    <button id="toggleTranslationBtn" class="icon-btn" title="แปลภาษา (ตัวอย่าง)"><i
-                            class="fa-solid fa-language"></i></button>
+                    <!-- Phase 4 (v2): Highlighter Mode -->
+                    <button id="toggleHighlightModeBtn" class="icon-btn" title="เปิด/ปิด โหมดไฮไลท์อิสระ"><i
+                            class="fa-solid fa-highlighter"></i></button>
                     <button id="toggleSidebarBtn" class="icon-btn" title="เปิดหน้าต่างเครื่องมือ"><i
                             class="fa-solid fa-pen-to-square"></i></button>
                 </div>
 
-                <!-- Phase 4: Highlight Color Picker & Phase 5: Memorization Mask -->
-                <div id="highlightTools" class="highlight-tools" style="display: none;">
-                    <button class="hl-color" style="background: rgba(255, 255, 0, 0.4);"
-                        data-color="rgba(255, 255, 0, 0.4)" title="เหลือง"></button>
-                    <button class="hl-color" style="background: rgba(144, 238, 144, 0.4);"
-                        data-color="rgba(144, 238, 144, 0.4)" title="เขียว"></button>
-                    <button class="hl-color" style="background: rgba(173, 216, 230, 0.4);"
-                        data-color="rgba(173, 216, 230, 0.4)" title="ฟ้า"></button>
-                    <button class="hl-color" style="background: rgba(255, 182, 193, 0.4);"
-                        data-color="rgba(255, 182, 193, 0.4)" title="ชมพู"></button>
+                <!-- Phase 4 (v2): Highlight Color Picker & Tools -->
+                <div id="highlightTools" class="highlight-tools fixed-palette" style="display: none;">
+                    <button class="hl-color active-color" style="background: rgba(255, 255, 0, 0.6);"
+                        data-color="rgba(255, 255, 0, 0.6)" title="เหลือง"></button>
+                    <button class="hl-color" style="background: rgba(50, 230, 50, 0.5);"
+                        data-color="rgba(50, 230, 50, 0.5)" title="เขียว"></button>
+                    <button class="hl-color" style="background: rgba(50, 200, 255, 0.5);"
+                        data-color="rgba(50, 200, 255, 0.5)" title="ฟ้า"></button>
+                    <button class="hl-color" style="background: rgba(255, 100, 200, 0.5);"
+                        data-color="rgba(255, 100, 200, 0.5)" title="ชมพู"></button>
                     <div class="separator-vertical"></div>
-                    <button class="hl-color mask-color-btn" style="background: #1e293b;" data-color="#1e293b_mask"
-                        title="โหมดท่องจำ (ปิดข้อความ)">
-                        <i class="fa-solid fa-eye-slash" style="color:white; font-size:0.7rem;"></i>
+                    <button class="hl-color tool-btn" id="hlUndoBtn" style="background: transparent;"
+                        title="เลิกทำ (Undo)">
+                        <i class="fa-solid fa-rotate-left" style="color:var(--text-primary); font-size:1rem;"></i>
+                    </button>
+                    <!-- Removed mask mode for now to keep canvas drawing simple, or we can keep it?
+                    The original user had "โหมดท่องจำ (ปิดข้อความ)", let's add an eraser instead -->
+                    <button class="hl-color tool-btn" id="hlEraserBtn" style="background: transparent;"
+                        data-color="eraser" title="ยางลบ">
+                        <i class="fa-solid fa-eraser" style="color:var(--text-primary); font-size:1rem;"></i>
+                    </button>
+                    <div class="separator-vertical"></div>
+                    <!-- Stroke Width Slider -->
+                    <div class="stroke-width-container"
+                        style="display: flex; align-items: center; gap: 0.25rem; padding: 0 0.25rem;"
+                        title="ปรับขนาดเส้น">
+                        <i class="fa-solid fa-pen" style="font-size: 0.7rem; color: var(--text-secondary);"></i>
+                        <input type="range" id="hlWidthSlider" min="5" max="50" value="20" class="width-slider">
+                        <i class="fa-solid fa-pen" style="font-size: 1.1rem; color: var(--text-secondary);"></i>
+                    </div>
+                    <div class="separator-vertical"></div>
+                    <button class="hl-color tool-btn" id="closeHighlightModeBtn" style="background: transparent;"
+                        title="ปิดโหมดไฮไลท์">
+                        <i class="fa-solid fa-xmark" style="color:var(--text-primary); font-size:1.1rem;"></i>
                     </button>
                 </div>
 
@@ -157,23 +188,10 @@
                     <div id="pdfPageContainer" class="pdf-page-container">
                         <!-- Phase 2: PDF Rendering -->
                         <canvas id="pdfCanvas"></canvas>
-                        <!-- Phase 4: Highlight Layer -->
-                        <div id="highlightLayer" class="highlightLayer"></div>
+                        <!-- Phase 4 (v2): Highlight Drawing Canvas -->
+                        <canvas id="highlightLayer" class="highlightLayer"></canvas>
                         <!-- Phase 4: Text Layer for selection -->
                         <div id="textLayer" class="textLayer"></div>
-
-                        <!-- Phase 5: Translation Layer -->
-                        <div id="translationLayer" class="translationLayer" style="display:none;">
-                            <div class="translation-box">
-                                <h3><i class="fa-solid fa-language"></i> English Translation (Phase 5 Demo)</h3>
-                                <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border);">
-                                <p style="margin-bottom: 0.5rem;">This is a demonstration of the translation overlay for
-                                    page <strong><span id="transPageNum">1</span></strong>.</p>
-                                <p style="font-size: 0.95rem; color: var(--text-secondary);">In a complete
-                                    implementation, precise translation data from a JSON source would be mapped to
-                                    specific Arabic/Thai texts.</p>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

@@ -515,16 +515,23 @@ textarea:focus {
     position: absolute;
     left: 0;
     top: 0;
-    right: 0;
-    bottom: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
-    /* Passes clicks appropriately to text layer */
     z-index: 5;
+    mix-blend-mode: multiply;
+    /* Marker effect */
 }
 
-.highlight-rect {
-    position: absolute;
-    mix-blend-mode: multiply;
+/* When drawing mode is active */
+.highlightLayer.drawing-mode {
+    pointer-events: auto;
+    cursor: crosshair;
+}
+
+.textLayer.drawing-mode {
+    pointer-events: none;
+    /* Disable text selection when drawing */
 }
 
 .highlight-tools {
@@ -542,6 +549,20 @@ textarea:focus {
     margin-top: -10px;
 }
 
+.highlight-tools.fixed-palette {
+    position: fixed;
+    top: 80px;
+    /* Below navbar */
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 0;
+    z-index: 110;
+    /* Above mobile menu */
+    background-color: var(--bg-secondary-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
 .separator-vertical {
     width: 1px;
     height: 16px;
@@ -549,7 +570,8 @@ textarea:focus {
     margin: 0 0.25rem;
 }
 
-.highlight-tools::after {
+/* Only show arrow for absolute positioning, not fixed */
+.highlight-tools:not(.fixed-palette)::after {
     content: '';
     position: absolute;
     bottom: -6px;
@@ -561,12 +583,12 @@ textarea:focus {
 }
 
 .hl-color {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 2px solid transparent;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: transform 0.2s, border-color 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -575,6 +597,57 @@ textarea:focus {
 .hl-color:hover {
     transform: scale(1.1);
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+.hl-color.active-color {
+    border-color: var(--text-primary);
+    transform: scale(1.1);
+}
+
+.tool-btn {
+    border: 1px solid var(--border);
+    background-color: var(--bg-primary) !important;
+}
+
+.tool-btn.active-color {
+    background-color: var(--border) !important;
+}
+
+/* Custom styling for range slider */
+.width-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 60px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    margin: 0 0.25rem;
+}
+
+[data-theme='dark'] .width-slider {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.width-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.width-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Phase 5: Memorization Mask */
@@ -599,36 +672,7 @@ textarea:focus {
     /* pass clicks through when revealed */
 }
 
-/* Phase 5: Translation Layer */
-.translationLayer {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 20;
-    padding: 2rem;
-    cursor: pointer;
-    backdrop-filter: blur(2px);
-}
 
-.translation-box {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    padding: 1.5rem 2rem;
-    border-radius: var(--radius);
-    max-width: 400px;
-    box-shadow: var(--shadow-md);
-    font-size: 1.1rem;
-    line-height: 1.6;
-    cursor: default;
-    border: 1px solid var(--border);
-}
 
 /* Phase 2: Focus Mode */
 body.focus-mode .navbar {
