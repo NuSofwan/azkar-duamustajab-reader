@@ -441,13 +441,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const bgRenderNext = () => {
         if (bgRendering || bgRenderQueue.length === 0) return;
-        const { bookName, pdfDocument, pageNum: pNum } = bgRenderQueue.shift();
+        const task = bgRenderQueue.shift();
+        const { bookName, pdfDocument, pageNum: pNum, priority } = task;
         const cacheKey = `${bookName}_${pNum}_${scale}`;
         if (pageCanvasCache[cacheKey]) { bgRenderNext(); return; }
 
         // Check IndexedDB first
         idbLoadPage(bookName, pNum).then(cached => {
-            if (cached) { bgRenderNext(); return; }
+            if (cached) {
+                // Still save to memory cache for instant in-session access
+                const url = URL.createObjectURL(cached.blob);
+                const img = new Image();
+                img.onload = () => {
+                    createImageBitmap(img).then(bitmap => {
+                        pageCanvasCache[cacheKey] = { bitmap, cssWidth: cached.cssW, cssHeight: cached.cssH };
+                    }).catch(() => { });
+                    URL.revokeObjectURL(url);
+                    bgRenderNext();
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); bgRenderNext(); };
+                img.src = url;
+                return;
+            }
 
             bgRendering = true;
             pdfDocument.getPage(pNum).then(page => {
@@ -470,8 +485,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).catch(err => console.warn("BgRender Cancelled:", err));
             }).then(() => {
                 bgRendering = false;
-                // Small delay to avoid blocking the main thread
-                setTimeout(bgRenderNext, 50);
+                // Priority pages render faster (10ms), background pages slower (30ms)
+                const delay = priority ? 10 : 30;
+                setTimeout(bgRenderNext, delay);
             }).catch(err => {
                 console.warn("BgRender getPage Error:", err);
                 bgRendering = false;
@@ -480,9 +496,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const prerenderPages = (bookName, pdfDocument, startPage, endPage) => {
+    const prerenderPages = (bookName, pdfDocument, startPage, endPage, priority = false) => {
         for (let i = startPage; i <= Math.min(endPage, pdfDocument.numPages); i++) {
-            bgRenderQueue.push({ bookName, pdfDocument, pageNum: i });
+            bgRenderQueue.push({ bookName, pdfDocument, pageNum: i, priority });
         }
         bgRenderNext();
     };
@@ -523,13 +539,16 @@ document.addEventListener('DOMContentLoaded', () => {
             pageNum = 1;
             renderPage(pageNum);
             loadBookmarks();
-            // Pre-render first 10 pages in background for instant navigation
-            prerenderPages(bookName, pdfDoc_, 2, 10);
-            // Then pre-render the rest
-            setTimeout(() => prerenderPages(bookName, pdfDoc_, 11, pdfDoc_.numPages), 2000);
+            // Priority pre-render first 5 pages for instant navigation
+            prerenderPages(bookName, pdfDoc_, 2, 5, true);
+            // Then pages 6-15 quickly
+            prerenderPages(bookName, pdfDoc_, 6, 15);
+            // Rest after a short delay
+            setTimeout(() => prerenderPages(bookName, pdfDoc_, 16, pdfDoc_.numPages), 500);
         } else {
-            // Pre-render first 10 pages of non-active book in background
-            prerenderPages(bookName, pdfDoc_, 1, 10);
+            // Pre-render first 5 pages of non-active book with priority
+            prerenderPages(bookName, pdfDoc_, 1, 5, true);
+            prerenderPages(bookName, pdfDoc_, 6, 10);
         }
     };
 
@@ -610,8 +629,9 @@ document.addEventListener('DOMContentLoaded', () => {
             cMapPacked: true,
         }).promise.then(pdfDoc_ => {
             pdfCache[bookName] = pdfDoc_;
-            // Pre-render first 10 pages in background
-            prerenderPages(bookName, pdfDoc_, 1, 10);
+            // Pre-render first 5 pages with priority
+            prerenderPages(bookName, pdfDoc_, 1, 5, true);
+            prerenderPages(bookName, pdfDoc_, 6, 10);
             return pdfDoc_;
         }).catch(err => {
             console.warn('Range-request PDF load failed, trying full download...', err);
@@ -623,7 +643,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).promise;
             }).then(pdfDoc_ => {
                 pdfCache[bookName] = pdfDoc_;
-                prerenderPages(bookName, pdfDoc_, 1, 10);
+                prerenderPages(bookName, pdfDoc_, 1, 5, true);
+                prerenderPages(bookName, pdfDoc_, 6, 10);
                 return pdfDoc_;
             });
         });
