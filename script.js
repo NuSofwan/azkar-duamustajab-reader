@@ -521,6 +521,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // Same as above but with progress tracking for the loading overlay
+    const loadFileAsArrayBufferWithProgress = (url, bookName) => {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.responseType = 'arraybuffer';
+            xhr.onprogress = (e) => {
+                if (e.lengthComputable && currentBook === bookName) {
+                    updateLoadingProgress((e.loaded / e.total) * 100);
+                }
+            };
+            xhr.onload = () => {
+                if (xhr.status === 200 || xhr.status === 0) {
+                    resolve(xhr.response);
+                } else {
+                    reject(new Error('XHR failed: ' + xhr.status));
+                }
+            };
+            xhr.onerror = () => reject(new Error('XHR network error'));
+            xhr.send();
+        });
+    };
+
     const onPDFLoaded = (bookName, pdfDoc_) => {
         pdfCache[bookName] = pdfDoc_;
         if (currentBook === bookName) {
@@ -613,29 +636,64 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Loading overlay elements
+    const loadingOverlay = document.getElementById('pdfLoadingOverlay');
+    const loadingProgressBar = document.getElementById('loadingProgressBar');
+    const loadingPercent = document.getElementById('loadingPercent');
+    const loadingText = document.getElementById('loadingText');
+
+    const bookDisplayNames = {
+        'th_athkar_assabah_walmasaa.pdf': 'อัซการยามเช้าและเย็น',
+        'dua_mustajab_th.pdf': 'ดุอามุสตาญาบ'
+    };
+
+    const showLoadingOverlay = (bookName) => {
+        loadingText.textContent = 'กำลังโหลด ' + (bookDisplayNames[bookName] || bookName) + '...';
+        loadingProgressBar.style.width = '0%';
+        loadingPercent.textContent = '0%';
+        loadingOverlay.style.display = 'flex';
+    };
+
+    const updateLoadingProgress = (percent) => {
+        const p = Math.min(100, Math.round(percent));
+        loadingProgressBar.style.width = p + '%';
+        loadingPercent.textContent = p + '%';
+    };
+
+    const hideLoadingOverlay = () => {
+        loadingOverlay.style.display = 'none';
+    };
+
     // Preload a PDF in the background (returns a promise, stores it for reuse)
-    // Uses disableAutoFetch so pdf.js uses HTTP range requests to fetch only
-    // what's needed (PDF structure + requested page data) instead of the entire file.
     const preloadPDF = (bookName) => {
         if (pdfCache[bookName]) return Promise.resolve(pdfCache[bookName]);
         if (pdfPreloadPromises[bookName]) return pdfPreloadPromises[bookName];
 
         const pdfUrl = './' + bookName;
-        const promise = pdfjsLib.getDocument({
+        const loadingTask = pdfjsLib.getDocument({
             url: pdfUrl,
             disableAutoFetch: true,
             disableStream: false,
             cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
             cMapPacked: true,
-        }).promise.then(pdfDoc_ => {
+        });
+
+        // Track download progress
+        loadingTask.onProgress = (progress) => {
+            if (progress.total > 0 && currentBook === bookName) {
+                updateLoadingProgress((progress.loaded / progress.total) * 100);
+            }
+        };
+
+        const promise = loadingTask.promise.then(pdfDoc_ => {
             pdfCache[bookName] = pdfDoc_;
-            // Pre-render first 5 pages with priority
             prerenderPages(bookName, pdfDoc_, 1, 5, true);
             prerenderPages(bookName, pdfDoc_, 6, 10);
             return pdfDoc_;
         }).catch(err => {
             console.warn('Range-request PDF load failed, trying full download...', err);
-            return loadFileAsArrayBuffer(pdfUrl).then(data => {
+            // Fallback: full download with XHR progress tracking
+            return loadFileAsArrayBufferWithProgress(pdfUrl, bookName).then(data => {
                 return pdfjsLib.getDocument({
                     data: data,
                     cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
@@ -655,6 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadPDF = (bookName) => {
         if (pdfCache[bookName]) {
             // Instant load from cache
+            hideLoadingOverlay();
             pdfDoc = pdfCache[bookName];
             pageCountSpan.textContent = pdfDoc.numPages;
 
@@ -674,9 +733,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Use the preload promise (already in progress or start new)
+        showLoadingOverlay(bookName);
         preloadPDF(bookName).then(pdfDoc_ => {
+            hideLoadingOverlay();
             onPDFLoaded(bookName, pdfDoc_);
         }).catch(err => {
+            hideLoadingOverlay();
             onPDFError(bookName, err);
         });
     };

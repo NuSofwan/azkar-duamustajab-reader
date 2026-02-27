@@ -58,6 +58,20 @@
         <button class="book-btn" data-book="dua_mustajab_th.pdf">ดุอามุสตาญาบ</button>
     </div>
 
+    <!-- PDF Loading Overlay -->
+    <div id="pdfLoadingOverlay"
+        style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:200; display:none; flex-direction:column; align-items:center; justify-content:center; gap:1rem;">
+        <i class="fa-solid fa-book-open"
+            style="font-size:2.5rem; color:#3b82f6; animation:pulse 1.5s ease-in-out infinite;"></i>
+        <div style="color:white; font-size:1.1rem; font-weight:500;" id="loadingText">กำลังโหลด ดุอามุสตาญาบ...</div>
+        <div style="width:260px; height:8px; background:rgba(255,255,255,0.2); border-radius:8px; overflow:hidden;">
+            <div id="loadingProgressBar"
+                style="width:0%; height:100%; background:linear-gradient(90deg,#3b82f6,#60a5fa); border-radius:8px; transition:width 0.3s ease;">
+            </div>
+        </div>
+        <div style="color:rgba(255,255,255,0.7); font-size:0.85rem;" id="loadingPercent">0%</div>
+    </div>
+
     <main class="main-content">
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
