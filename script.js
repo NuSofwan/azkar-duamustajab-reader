@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationToggle = document.getElementById('notificationToggle');
 
     // --- State variables ---
-    let currentBook = 'th_athkar_assabah_walmasaa.pdf';
+    let currentBook = localStorage.getItem('lastBook') || 'dua_mustajab_th.pdf';
     let pdfDoc = null;
     let pageNum = 1;
     let pageRendering = false;
@@ -836,6 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectBook = (bookName) => {
         if (currentBook === bookName && pdfDoc) return; // Already viewing
         currentBook = bookName;
+        localStorage.setItem('lastBook', bookName);
 
         [...bookBtnsDesktop, ...bookBtnsMobile].forEach(btn => {
             if (btn.getAttribute('data-book') === bookName) btn.classList.add('active');
