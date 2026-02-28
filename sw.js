@@ -1,4 +1,4 @@
-const CACHE_NAME = 'azkar-reader-v18';
+const CACHE_NAME = 'dua-mustajab-v19';
 const urlsToCache = [
     './',
     './index.html',

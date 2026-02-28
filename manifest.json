@@ -1,7 +1,7 @@
 {
-  "name": "Azkar Reader",
-  "short_name": "Azkar",
-  "description": "แอปพลิเคชันสำหรับอ่านหนังสือ Azkar พร้อมฟีเจอร์จดโน้ต บุ๊กมาร์ก และไฮไลต์",
+  "name": "Dua Mustajab",
+  "short_name": "Dua Mustajab",
+  "description": "แอปพลิเคชันสำหรับอ่านหนังสือ Dua Mustajab พร้อมฟีเจอร์จดโน้ต บุ๊กมาร์ก และไฮไลต์",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
