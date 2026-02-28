@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dua-mustajab-v20';
+const CACHE_NAME = 'dua-mustajab-v21';
 const urlsToCache = [
     './',
     './index.html',

@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationToggle = document.getElementById('notificationToggle');
 
     // --- State variables ---
-    let currentBook = localStorage.getItem('lastBook') || 'dua_mustajab_th.pdf';
+    let currentBook = 'th_athkar_assabah_walmasaa.pdf';
     let pdfDoc = null;
     let pageNum = 1;
     let pageRendering = false;
@@ -571,7 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (currentBook === 'th_athkar_assabah_walmasaa.pdf') {
                     tocList.innerHTML = `
                         <li><a href="#" class="toc-link" data-page="31"><i class="fa-solid fa-bookmark"></i> <span>วิธีการอ่านอัซการ</span></a></li>
-                        <li><a href="#" class="toc-link" data-page="10"><i class="fa-solid fa-bookmark"></i> <span>อัซการ</span></a></li>
+                        <li><a href="#" class="toc-link" data-page="10"><i class="fa-solid fa-bookmark"></i> <span>อัซการเช้า/เย็น</span></a></li>
                     `;
                 } else if (currentBook === 'dua_mustajab_th.pdf') {
                     tocList.innerHTML = `
@@ -819,6 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pageNum = 1;
             renderPage(pageNum);
             loadBookmarks();
+            loadTOC(pdfDoc);
             return;
         }
 
@@ -836,7 +837,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectBook = (bookName) => {
         if (currentBook === bookName && pdfDoc) return; // Already viewing
         currentBook = bookName;
-        localStorage.setItem('lastBook', bookName);
 
         [...bookBtnsDesktop, ...bookBtnsMobile].forEach(btn => {
             if (btn.getAttribute('data-book') === bookName) btn.classList.add('active');
