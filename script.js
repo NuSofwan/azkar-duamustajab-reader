@@ -1476,34 +1476,30 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollTouchStartTime = Date.now();
     }, { passive: true });
 
+    pdfViewerWrapper.addEventListener('touchmove', (e) => {
+        // We only use passive: true to let native scroll work. We don't preventDefault here.
+    }, { passive: true });
+
     pdfViewerWrapper.addEventListener('touchend', (e) => {
         // Phase 6 Fix: Ignore if there were multiple touches (pinch)
-        if (navMode !== 'scroll' || !pdfDoc || scrollTouchCooldown || e.changedTouches.length > 1 || e.touches.length > 0) return;
+        if (navMode !== 'scroll' || !pdfDoc || scrollTouchCooldown || e.changedTouches.length !== 1) return;
 
         const touchDuration = Date.now() - scrollTouchStartTime;
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
         const deltaX = Math.abs(e.changedTouches[0].clientX - scrollTouchStartX);
 
-        // ป้องกันการเปลี่ยนหน้าแบบไม่ตั้งใจ หากสัมผัสนานกว่า 500ms (ตั้งใจจะแพนหน้าต่าง)
-        if (touchDuration > 500) return;
+        if (touchDuration > 400) return;
 
-        // ถ้าการตวัดนิ้วมีแนวเฉียงหรือแนวนอนมากกว่าการขึ้นลง ให้ถือว่าเป็นการแพนหน้าจอ
-        if (deltaX > Math.abs(deltaY) * 0.7) return;
+        // ถ้าการตวัดนิ้วเป็นแนวนอนมากกว่าแนวตั้งชัดเจน ถือว่าเป็นการแพน ไม่ใช่สลับหน้า
+        if (deltaX > Math.abs(deltaY) * 0.8) return;
 
         const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
         const atTop = pdfViewerWrapper.scrollTop <= 5;
 
-        // เช็คว่าหน้ากระดาษพอดีกับจอหรือไม่ (ไม่มี scrollbar) เช่น กรณีดูแนวนอนแล้วเนื้อหาพอดีจอ
-        const hasNoScroll = pdfViewerWrapper.scrollHeight <= pdfViewerWrapper.clientHeight + 10;
+        // เราใช้ threshold ต่ำลงมานิดนึง เพื่อให้ตวัดง่ายขึ้น (ไม่ต้องลากยาวมาก)
+        const threshold = 70;
 
-        // ถ้าไม่มี Scroll ให้ใช้น้ำหนัก/ระยะการตวัดที่มากขึ้น (150px) และต้องตวัดไว เพื่อกันการเอานิ้วไปลากเล่นๆ
-        const threshold = hasNoScroll ? 150 : 100;
-        const velocityY = Math.abs(deltaY) / touchDuration;
-
-        // ถ้าไม่มีการลาก Scroll แต่ใช้นิ้วลูบเลื่อนไปมาแบบช้าลง (ความเร็วต่ำกว่า 0.3) ให้ยกเลิกการเปลี่ยนหน้า
-        if (hasNoScroll && velocityY < 0.3 && Math.abs(deltaY) < 200) return;
-
-        // Ensure swipe was initiated while ALREADY at the boundary
+        // จังหวะการตวัดเปลี่ยนหน้า ต้องเป็นการตวัดสั้นๆ และไว (ระยะมากกว่า 70px)
         if (deltaY < -threshold && atBottom && scrollTouchStartAtBottom) {
             // Swiped up at bottom → next page
             scrollTouchCooldown = true;
@@ -1519,6 +1515,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             setTimeout(() => scrollTouchCooldown = false, 400);
         }
+        // ถ้าไม่เข้าเงื่อนไขเปลี่ยนหน้า ปล่อยให้เบราว์เซอร์รับผิดชอบ Event เลื่อนตามปกติ
     }, { passive: true });
 
     // --- Swipe Mode: touch swipe to change pages ---
