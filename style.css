@@ -616,10 +616,17 @@ textarea:focus {
 .pdf-viewer-wrapper.swipe-mode {
     overflow: hidden;
     align-items: center;
+    touch-action: pan-y;
+    /* Allow native vertical scroll; horizontal swipes handled by JS */
 }
 
 .pdf-viewer-wrapper.scroll-mode {
     overflow: auto;
+    touch-action: pan-y;
+    /* CRITICAL: tells browser to scroll vertically immediately
+       without waiting for JS touchmove handlers (fixes double-swipe issue) */
+    -webkit-overflow-scrolling: touch;
+    /* Smooth momentum scrolling on iOS */
 }
 
 .swipe-mode .pdf-page-container {
