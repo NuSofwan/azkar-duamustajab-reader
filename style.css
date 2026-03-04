@@ -627,6 +627,9 @@ textarea:focus {
        without waiting for JS touchmove handlers (fixes double-swipe issue) */
     -webkit-overflow-scrolling: touch;
     /* Smooth momentum scrolling on iOS */
+    overscroll-behavior-y: contain;
+    /* Prevent overscroll effects (pull-to-refresh, elastic bounce) at edges
+       that consume the first reverse-direction scroll gesture */
 }
 
 .swipe-mode .pdf-page-container {

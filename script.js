@@ -1554,13 +1554,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Only swipe horizontally if horizontal movement > vertical
         if (Math.abs(touchDeltaX) > deltaY && Math.abs(touchDeltaX) > 10) {
             isSwiping = true;
-            e.preventDefault();
+            // Note: e.preventDefault() is NOT needed here because CSS touch-action: pan-y
+            // already tells the browser not to handle horizontal panning.
+            // Using passive: true allows the browser to scroll immediately in scroll mode.
             // Follow finger with resistance
             const resistance = 0.4;
             pdfPageContainer.style.transform = `translateX(${touchDeltaX * resistance}px)`;
             pdfPageContainer.style.opacity = Math.max(0.5, 1 - Math.abs(touchDeltaX) / 600);
         }
-    }, { passive: false });
+    }, { passive: true });
 
     pdfViewerWrapper.addEventListener('touchend', (e) => {
         if (navMode !== 'swipe' || !pdfDoc || !isSwiping) {
