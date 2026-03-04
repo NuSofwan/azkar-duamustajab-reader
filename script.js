@@ -1464,6 +1464,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let scrollTouchStartAtTop = false;
     let scrollTouchStartAtBottom = false;
     let scrollTouchCooldown = false;
+    let scrollTouchStartTime = 0;
 
     pdfViewerWrapper.addEventListener('touchstart', (e) => {
         // Phase 6 Fix: Ignore pinch-to-zoom (multi-touch)
@@ -1472,17 +1473,25 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollTouchStartX = e.changedTouches[0].clientX;
         scrollTouchStartAtTop = pdfViewerWrapper.scrollTop <= 5;
         scrollTouchStartAtBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
+        scrollTouchStartTime = Date.now();
     }, { passive: true });
 
     pdfViewerWrapper.addEventListener('touchend', (e) => {
         // Phase 6 Fix: Ignore if there were multiple touches (pinch)
         if (navMode !== 'scroll' || !pdfDoc || scrollTouchCooldown || e.changedTouches.length > 1 || e.touches.length > 0) return;
+
+        const touchDuration = Date.now() - scrollTouchStartTime;
+        // ป้องกันการเปลี่ยนหน้าแบบไม่ตั้งใจ หากการสัมผัสหน้าจอกินเวลานาน (เช่นตั้งใจจะเลื่อนเพื่ออ่านช้าๆ ไม่ใช่การตวัดนิ้ว)
+        if (touchDuration > 400) return;
+
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
         const deltaX = Math.abs(e.changedTouches[0].clientX - scrollTouchStartX);
-        const threshold = 80;
 
-        // If it's more horizontal than vertical, ignore (don't turn page)
-        if (deltaX > Math.abs(deltaY)) return;
+        // เพิ่มระยะ threshold ให้ยาวขึ้น เพื่อบังคับว่าถ้าจะให้เปลี่ยนหน้า ต้องตวัดนิ้วอย่างจงใจจริงๆ
+        const threshold = 120;
+
+        // ถ้าการตวัดนิ้วมีแนวโน้มไปทางแนวนอนมากกว่า ให้ถือว่าเป็นการแพนหน้าจอ ไม่ใช่เปลี่ยนหน้า
+        if (deltaX * 1.5 > Math.abs(deltaY)) return;
 
         const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
         const atTop = pdfViewerWrapper.scrollTop <= 5;
