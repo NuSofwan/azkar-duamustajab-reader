@@ -1481,20 +1481,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (navMode !== 'scroll' || !pdfDoc || scrollTouchCooldown || e.changedTouches.length > 1 || e.touches.length > 0) return;
 
         const touchDuration = Date.now() - scrollTouchStartTime;
-        // ป้องกันการเปลี่ยนหน้าแบบไม่ตั้งใจ หากการสัมผัสหน้าจอกินเวลานาน (เช่นตั้งใจจะเลื่อนเพื่ออ่านช้าๆ ไม่ใช่การตวัดนิ้ว)
-        if (touchDuration > 400) return;
-
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
         const deltaX = Math.abs(e.changedTouches[0].clientX - scrollTouchStartX);
 
-        // เพิ่มระยะ threshold ให้ยาวขึ้น เพื่อบังคับว่าถ้าจะให้เปลี่ยนหน้า ต้องตวัดนิ้วอย่างจงใจจริงๆ
-        const threshold = 120;
+        // ป้องกันการเปลี่ยนหน้าแบบไม่ตั้งใจ หากสัมผัสนานกว่า 500ms (ตั้งใจจะแพนหน้าต่าง)
+        if (touchDuration > 500) return;
 
-        // ถ้าการตวัดนิ้วมีแนวโน้มไปทางแนวนอนมากกว่า ให้ถือว่าเป็นการแพนหน้าจอ ไม่ใช่เปลี่ยนหน้า
-        if (deltaX * 1.5 > Math.abs(deltaY)) return;
+        // ถ้าการตวัดนิ้วมีแนวเฉียงหรือแนวนอนมากกว่าการขึ้นลง ให้ถือว่าเป็นการแพนหน้าจอ
+        if (deltaX > Math.abs(deltaY) * 0.7) return;
 
         const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
         const atTop = pdfViewerWrapper.scrollTop <= 5;
+
+        // เช็คว่าหน้ากระดาษพอดีกับจอหรือไม่ (ไม่มี scrollbar) เช่น กรณีดูแนวนอนแล้วเนื้อหาพอดีจอ
+        const hasNoScroll = pdfViewerWrapper.scrollHeight <= pdfViewerWrapper.clientHeight + 10;
+
+        // ถ้าไม่มี Scroll ให้ใช้น้ำหนัก/ระยะการตวัดที่มากขึ้น (150px) และต้องตวัดไว เพื่อกันการเอานิ้วไปลากเล่นๆ
+        const threshold = hasNoScroll ? 150 : 100;
+        const velocityY = Math.abs(deltaY) / touchDuration;
+
+        // ถ้าไม่มีการลาก Scroll แต่ใช้นิ้วลูบเลื่อนไปมาแบบช้าลง (ความเร็วต่ำกว่า 0.3) ให้ยกเลิกการเปลี่ยนหน้า
+        if (hasNoScroll && velocityY < 0.3 && Math.abs(deltaY) < 200) return;
 
         // Ensure swipe was initiated while ALREADY at the boundary
         if (deltaY < -threshold && atBottom && scrollTouchStartAtBottom) {
