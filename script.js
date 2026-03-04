@@ -1488,6 +1488,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
         const deltaX = Math.abs(e.changedTouches[0].clientX - scrollTouchStartX);
 
+        // ถ้าลากหน้าจอนานเกิน 400ms ให้ถือวิสาสะว่าเป็นการ "แพนเพื่ออ่าน" ไปเลย ปล่อยผ่าน
         if (touchDuration > 400) return;
 
         // ถ้าการตวัดนิ้วเป็นแนวนอนมากกว่าแนวตั้งชัดเจน ถือว่าเป็นการแพน ไม่ใช่สลับหน้า
