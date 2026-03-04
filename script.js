@@ -1465,6 +1465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let scrollTouchStartAtBottom = false;
     let scrollTouchCooldown = false;
     let scrollTouchStartTime = 0;
+    let scrollTouchStartScrollTop = 0;
 
     pdfViewerWrapper.addEventListener('touchstart', (e) => {
         // Phase 6 Fix: Ignore pinch-to-zoom (multi-touch)
@@ -1474,10 +1475,11 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollTouchStartAtTop = pdfViewerWrapper.scrollTop <= 5;
         scrollTouchStartAtBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
         scrollTouchStartTime = Date.now();
+        scrollTouchStartScrollTop = pdfViewerWrapper.scrollTop;
     }, { passive: true });
 
     pdfViewerWrapper.addEventListener('touchmove', (e) => {
-        // We only use passive: true to let native scroll work. We don't preventDefault here.
+        // passive: true to let native scroll work. We don't preventDefault here.
     }, { passive: true });
 
     pdfViewerWrapper.addEventListener('touchend', (e) => {
@@ -1488,19 +1490,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
         const deltaX = Math.abs(e.changedTouches[0].clientX - scrollTouchStartX);
 
-        // ถ้าลากหน้าจอนานเกิน 400ms ให้ถือวิสาสะว่าเป็นการ "แพนเพื่ออ่าน" ไปเลย ปล่อยผ่าน
-        if (touchDuration > 400) return;
+        // ถ้าลากหน้าจอนานเกิน 350ms ให้ถือว่าเป็นการ "เลื่อนเพื่ออ่าน" ปล่อยผ่าน
+        if (touchDuration > 350) return;
 
-        // ถ้าการตวัดนิ้วเป็นแนวนอนมากกว่าแนวตั้งชัดเจน ถือว่าเป็นการแพน ไม่ใช่สลับหน้า
-        if (deltaX > Math.abs(deltaY) * 0.8) return;
+        // ถ้าการตวัดนิ้วเป็นแนวนอนมากกว่าแนวตั้ง ถือว่าเป็นการแพน ไม่ใช่สลับหน้า
+        if (deltaX > Math.abs(deltaY) * 0.7) return;
 
+        // ถ้าเบราว์เซอร์เลื่อน scroll จริงระหว่าง touch → ไม่ใช่การเปลี่ยนหน้า
+        const scrollDelta = Math.abs(pdfViewerWrapper.scrollTop - scrollTouchStartScrollTop);
+        if (scrollDelta > 3) return;
+
+        // ต้องเป็นการตวัดที่เร็วจริงๆ (velocity check)
+        const velocity = Math.abs(deltaY) / Math.max(touchDuration, 1);
+        if (velocity < 0.3) return;
+
+        // Re-check edge position at touchend (สำคัญ: ค่าจาก touchstart อาจล้าสมัย)
         const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
         const atTop = pdfViewerWrapper.scrollTop <= 5;
 
-        // เราใช้ threshold ต่ำลงมานิดนึง เพื่อให้ตวัดง่ายขึ้น (ไม่ต้องลากยาวมาก)
-        const threshold = 70;
+        const threshold = 100;
 
-        // จังหวะการตวัดเปลี่ยนหน้า ต้องเป็นการตวัดสั้นๆ และไว (ระยะมากกว่า 70px)
+        // จังหวะการตวัดเปลี่ยนหน้า: ต้องตวัดเร็ว ระยะ>100px และอยู่ที่ขอบ
         if (deltaY < -threshold && atBottom && scrollTouchStartAtBottom) {
             // Swiped up at bottom → next page
             scrollTouchCooldown = true;
@@ -1516,7 +1526,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             setTimeout(() => scrollTouchCooldown = false, 400);
         }
-        // ถ้าไม่เข้าเงื่อนไขเปลี่ยนหน้า ปล่อยให้เบราว์เซอร์รับผิดชอบ Event เลื่อนตามปกติ
+        // ถ้าไม่เข้าเงื่อนไขเปลี่ยนหน้า ปล่อยให้เบราว์เซอร์เลื่อนตามปกติ
     }, { passive: true });
 
     // --- Swipe Mode: touch swipe to change pages ---
