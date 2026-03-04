@@ -87,6 +87,8 @@ body {
     transition: var(--transition);
     position: relative;
     overflow-x: hidden;
+    overscroll-behavior: none;
+    /* Prevent pull-to-refresh and scroll chaining from body */
 }
 
 body::before {
@@ -621,15 +623,14 @@ textarea:focus {
 }
 
 .pdf-viewer-wrapper.scroll-mode {
-    overflow: auto;
-    touch-action: pan-y;
-    /* CRITICAL: tells browser to scroll vertically immediately
-       without waiting for JS touchmove handlers (fixes double-swipe issue) */
-    -webkit-overflow-scrolling: touch;
-    /* Smooth momentum scrolling on iOS */
-    overscroll-behavior-y: contain;
-    /* Prevent overscroll effects (pull-to-refresh, elastic bounce) at edges
-       that consume the first reverse-direction scroll gesture */
+    overflow-y: auto;
+    overflow-x: hidden;
+    touch-action: auto;
+    /* Let browser handle ALL touch gestures freely —
+       pan-y was too restrictive and blocked scroll reversal at edges */
+    overscroll-behavior: none;
+    /* Prevent ALL overscroll effects (pull-to-refresh, bounce, glow)
+       that consume the first reverse-direction gesture at edges */
 }
 
 .swipe-mode .pdf-page-container {

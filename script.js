@@ -1486,8 +1486,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Phase 6 Fix: Ignore if there were multiple touches (pinch)
         if (navMode !== 'scroll' || !pdfDoc || scrollTouchCooldown || e.changedTouches.length !== 1) return;
 
-        const touchDuration = Date.now() - scrollTouchStartTime;
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
+
+        // === EARLY EXIT: ตรวจทิศทางก่อน ===
+        // ถ้าตวัดขึ้น (deltaY < 0) จะเปลี่ยนหน้าได้ก็ต่อเมื่ออยู่ล่างสุด
+        // ถ้าตวัดลง (deltaY > 0) จะเปลี่ยนหน้าได้ก็ต่อเมื่ออยู่บนสุด
+        // ถ้าไม่ตรงเงื่อนไข → return ทันที ไม่ต้องเสียเวลาตรวจอย่างอื่น
+        const couldBeNextPage = deltaY < 0 && scrollTouchStartAtBottom;
+        const couldBePrevPage = deltaY > 0 && scrollTouchStartAtTop;
+        if (!couldBeNextPage && !couldBePrevPage) return;
+
+        const touchDuration = Date.now() - scrollTouchStartTime;
         const deltaX = Math.abs(e.changedTouches[0].clientX - scrollTouchStartX);
 
         // ถ้าลากหน้าจอนานเกิน 350ms ให้ถือว่าเป็นการ "เลื่อนเพื่ออ่าน" ปล่อยผ่าน
@@ -1504,13 +1513,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const velocity = Math.abs(deltaY) / Math.max(touchDuration, 1);
         if (velocity < 0.3) return;
 
-        // Re-check edge position at touchend (สำคัญ: ค่าจาก touchstart อาจล้าสมัย)
+        // Re-check edge position at touchend
         const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
         const atTop = pdfViewerWrapper.scrollTop <= 5;
 
         const threshold = 100;
 
-        // จังหวะการตวัดเปลี่ยนหน้า: ต้องตวัดเร็ว ระยะ>100px และอยู่ที่ขอบ
         if (deltaY < -threshold && atBottom && scrollTouchStartAtBottom) {
             // Swiped up at bottom → next page
             scrollTouchCooldown = true;
@@ -1526,7 +1534,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             setTimeout(() => scrollTouchCooldown = false, 400);
         }
-        // ถ้าไม่เข้าเงื่อนไขเปลี่ยนหน้า ปล่อยให้เบราว์เซอร์เลื่อนตามปกติ
     }, { passive: true });
 
     // --- Swipe Mode: touch swipe to change pages ---
