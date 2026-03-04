@@ -97,15 +97,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const openIDB = () => {
         return new Promise((resolve, reject) => {
             if (idb) { resolve(idb); return; }
-            const req = indexedDB.open(IDB_NAME, IDB_VERSION);
-            req.onupgradeneeded = (e) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains(IDB_STORE)) {
-                    db.createObjectStore(IDB_STORE);
-                }
-            };
-            req.onsuccess = (e) => { idb = e.target.result; resolve(idb); };
-            req.onerror = () => reject(req.error);
+            if (!window.indexedDB) { reject(new Error('No IDB support')); return; }
+            try {
+                const req = window.indexedDB.open(IDB_NAME, IDB_VERSION);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(IDB_STORE)) {
+                        db.createObjectStore(IDB_STORE);
+                    }
+                };
+                req.onsuccess = (e) => { idb = e.target.result; resolve(idb); };
+                req.onerror = () => reject(req.error);
+            } catch (err) { reject(err); }
         });
     };
 
@@ -356,9 +359,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     loadHighlights(num);
 
                     // Cache in memory
-                    createImageBitmap(offCanvas).then(bitmap => {
-                        pageCanvasCache[cacheKey] = { bitmap, cssWidth: cssW, cssHeight: cssH };
-                    }).catch(() => { });
+                    if (window.createImageBitmap) {
+                        createImageBitmap(offCanvas).then(bitmap => {
+                            pageCanvasCache[cacheKey] = { bitmap, cssWidth: cssW, cssHeight: cssH };
+                        }).catch(() => { });
+                    }
                     // Cache in IndexedDB
                     idbSavePage(currentBook, num, offCanvas, cssW, cssH);
 
@@ -468,9 +473,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const url = URL.createObjectURL(cached.blob);
                 const img = new Image();
                 img.onload = () => {
-                    createImageBitmap(img).then(bitmap => {
-                        pageCanvasCache[cacheKey] = { bitmap, cssWidth: cached.cssW, cssHeight: cached.cssH };
-                    }).catch(() => { });
+                    if (window.createImageBitmap) {
+                        createImageBitmap(img).then(bitmap => {
+                            pageCanvasCache[cacheKey] = { bitmap, cssWidth: cached.cssW, cssHeight: cached.cssH };
+                        }).catch(() => { });
+                    }
                     URL.revokeObjectURL(url);
                     bgRenderNext();
                 };
@@ -494,9 +501,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Save to IndexedDB
                     idbSavePage(bookName, pNum, offCanvas, Math.floor(viewport.width), Math.floor(viewport.height));
                     // Also cache in memory
-                    createImageBitmap(offCanvas).then(bitmap => {
-                        pageCanvasCache[cacheKey] = { bitmap, cssWidth: Math.floor(viewport.width), cssHeight: Math.floor(viewport.height) };
-                    }).catch(() => { });
+                    if (window.createImageBitmap) {
+                        createImageBitmap(offCanvas).then(bitmap => {
+                            pageCanvasCache[cacheKey] = { bitmap, cssWidth: Math.floor(viewport.width), cssHeight: Math.floor(viewport.height) };
+                        }).catch(() => { });
+                    }
                 }).catch(err => console.warn("BgRender Cancelled:", err));
             }).then(() => {
                 bgRendering = false;
@@ -1451,30 +1460,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Scroll Mode: touch swipe to change pages (mobile) ---
     let scrollTouchStartY = 0;
+    let scrollTouchStartX = 0;
+    let scrollTouchStartAtTop = false;
+    let scrollTouchStartAtBottom = false;
     let scrollTouchCooldown = false;
 
     pdfViewerWrapper.addEventListener('touchstart', (e) => {
         // Phase 6 Fix: Ignore pinch-to-zoom (multi-touch)
         if (navMode !== 'scroll' || !pdfDoc || e.touches.length > 1) return;
         scrollTouchStartY = e.changedTouches[0].clientY;
+        scrollTouchStartX = e.changedTouches[0].clientX;
+        scrollTouchStartAtTop = pdfViewerWrapper.scrollTop <= 5;
+        scrollTouchStartAtBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
     }, { passive: true });
 
     pdfViewerWrapper.addEventListener('touchend', (e) => {
         // Phase 6 Fix: Ignore if there were multiple touches (pinch)
         if (navMode !== 'scroll' || !pdfDoc || scrollTouchCooldown || e.changedTouches.length > 1 || e.touches.length > 0) return;
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
-        const threshold = 50;
+        const deltaX = Math.abs(e.changedTouches[0].clientX - scrollTouchStartX);
+        const threshold = 80;
+
+        // If it's more horizontal than vertical, ignore (don't turn page)
+        if (deltaX > Math.abs(deltaY)) return;
 
         const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
         const atTop = pdfViewerWrapper.scrollTop <= 5;
 
-        if (deltaY < -threshold && atBottom) {
+        // Ensure swipe was initiated while ALREADY at the boundary
+        if (deltaY < -threshold && atBottom && scrollTouchStartAtBottom) {
             // Swiped up at bottom → next page
             scrollTouchCooldown = true;
             onNextPage();
             pdfViewerWrapper.scrollTop = 0;
             setTimeout(() => scrollTouchCooldown = false, 400);
-        } else if (deltaY > threshold && atTop) {
+        } else if (deltaY > threshold && atTop && scrollTouchStartAtTop) {
             // Swiped down at top → prev page
             scrollTouchCooldown = true;
             onPrevPage();
