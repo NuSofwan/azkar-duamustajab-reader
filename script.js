@@ -1511,8 +1511,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
 
     pdfViewerWrapper.addEventListener('touchmove', (e) => {
-        // passive: true to let native scroll work. We don't preventDefault here.
-    }, { passive: true });
+        // iOS Fix: At page boundaries, prevent the browser's native rubber-band
+        // (overscroll bounce) effect so that scrollTop stays stable and our
+        // touchend handler can reliably read it.
+        // This listener must be non-passive so preventDefault() is honoured.
+        if (isPinching || e.touches.length !== 1 || !pdfDoc) return;
+        const dy = e.touches[0].clientY - scrollTouchStartY;
+        const dx = Math.abs(e.touches[0].clientX - scrollTouchStartX);
+        const isVerticalSwipe = Math.abs(dy) > dx * 1.2;
+        if (isVerticalSwipe) {
+            if (dy < 0 && scrollTouchStartAtBottom) e.preventDefault(); // block bounce at bottom
+            else if (dy > 0 && scrollTouchStartAtTop) e.preventDefault(); // block bounce at top
+        }
+    }, { passive: false });
 
     pdfViewerWrapper.addEventListener('touchend', (e) => {
         // Ignore: pinch just ended, multi-touch, cooldown, or no PDF
@@ -1538,29 +1549,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // If the wrapper actually scrolled a meaningful amount, the user was
         // reading content — don't hijack it as a page-turn.
-        // Raised from 3 → 15 to tolerate iOS rubber-band micro-scroll.
+        // Raised to 60 to tolerate iOS rubber-band which can temporarily push
+        // scrollTop well outside [0, maxScroll] before snapping back.
         const scrollDelta = Math.abs(pdfViewerWrapper.scrollTop - scrollTouchStartScrollTop);
-        if (scrollDelta > 15) return;
+        if (scrollDelta > 60) return;
 
         // Velocity check: must be a deliberate flick, not a slow drag.
         // Lowered from 0.3 → 0.15 so a relaxed swipe still triggers.
         const velocity = Math.abs(deltaY) / Math.max(touchDuration, 1);
         if (velocity < 0.15) return;
 
-        // Re-check edge position at touchend
-        const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
-        const atTop = pdfViewerWrapper.scrollTop <= 5;
-
         // Lowered from 100 → 40px so a short, confident flick is enough.
         const threshold = 40;
 
-        if (deltaY < -threshold && atBottom && scrollTouchStartAtBottom) {
+        // iOS Fix: removed redundant atBottom/atTop re-check at touchend.
+        // On iOS, rubber-band temporarily moves scrollTop away from the boundary,
+        // so re-reading it here caused false negatives. The start-position flags
+        // (scrollTouchStartAtBottom / scrollTouchStartAtTop) are sufficient —
+        // they were recorded before the gesture began and are not affected by bounce.
+        if (deltaY < -threshold && scrollTouchStartAtBottom) {
             // Swiped up at bottom → next page
             scrollTouchCooldown = true;
             onNextPage();
             pdfViewerWrapper.scrollTop = 0;
             setTimeout(() => scrollTouchCooldown = false, 400);
-        } else if (deltaY > threshold && atTop && scrollTouchStartAtTop) {
+        } else if (deltaY > threshold && scrollTouchStartAtTop) {
             // Swiped down at top → prev page
             scrollTouchCooldown = true;
             onPrevPage();
