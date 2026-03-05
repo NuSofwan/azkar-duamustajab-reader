@@ -626,11 +626,15 @@ textarea:focus {
     overflow-y: auto;
     overflow-x: hidden;
     touch-action: auto;
-    /* Let browser handle ALL touch gestures freely —
-       pan-y was too restrictive and blocked scroll reversal at edges */
-    overscroll-behavior: none;
-    /* Prevent ALL overscroll effects (pull-to-refresh, bounce, glow)
-       that consume the first reverse-direction gesture at edges */
+    /* 'contain' keeps overscroll within this element and prevents the parent
+       (body) from absorbing the first reverse-direction gesture at boundaries.
+       Unlike 'none', it doesn't block the element's own scroll response —
+       fixing the "first swipe up from bottom does nothing" bug on iOS Safari. */
+    overscroll-behavior-y: contain;
+    /* Keep horizontal overscroll disabled to prevent accidental page swipes */
+    overscroll-behavior-x: none;
+    /* Legacy iOS smooth scroll support */
+    -webkit-overflow-scrolling: touch;
 }
 
 .swipe-mode .pdf-page-container {

@@ -1470,6 +1470,22 @@ document.addEventListener('DOMContentLoaded', () => {
     pdfViewerWrapper.addEventListener('touchstart', (e) => {
         // Phase 6 Fix: Ignore pinch-to-zoom (multi-touch)
         if (navMode !== 'scroll' || !pdfDoc || e.touches.length > 1) return;
+
+        // iOS Safari Landscape Fix: "Unstick" from hard scroll boundaries.
+        // When scrollTop is exactly 0 or exactly at the maximum, iOS Safari
+        // absorbs the first reverse-direction gesture (rubber-band mode),
+        // causing the first swipe up from bottom (or down from top) to do nothing.
+        // Nudging 1px inward keeps the element just off the hard boundary so
+        // the very next gesture responds immediately — matching portrait behaviour.
+        const maxScroll = pdfViewerWrapper.scrollHeight - pdfViewerWrapper.clientHeight;
+        if (maxScroll > 2) {
+            if (pdfViewerWrapper.scrollTop <= 0) {
+                pdfViewerWrapper.scrollTop = 1;
+            } else if (pdfViewerWrapper.scrollTop >= maxScroll) {
+                pdfViewerWrapper.scrollTop = maxScroll - 1;
+            }
+        }
+
         scrollTouchStartY = e.changedTouches[0].clientY;
         scrollTouchStartX = e.changedTouches[0].clientX;
         scrollTouchStartAtTop = pdfViewerWrapper.scrollTop <= 5;
