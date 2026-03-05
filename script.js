@@ -1478,11 +1478,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Nudging 1px inward keeps the element just off the hard boundary so
         // the very next gesture responds immediately — matching portrait behaviour.
         const maxScroll = pdfViewerWrapper.scrollHeight - pdfViewerWrapper.clientHeight;
-        if (maxScroll > 2) {
+        if (maxScroll > 4) {
             if (pdfViewerWrapper.scrollTop <= 0) {
-                pdfViewerWrapper.scrollTop = 1;
+                pdfViewerWrapper.scrollTop = 3;
             } else if (pdfViewerWrapper.scrollTop >= maxScroll) {
-                pdfViewerWrapper.scrollTop = maxScroll - 1;
+                pdfViewerWrapper.scrollTop = maxScroll - 3;
             }
         }
 
