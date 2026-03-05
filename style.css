@@ -639,14 +639,7 @@ textarea:focus {
     background-color: var(--bg-primary);
 }
 
-/* Navigation modes */
-.pdf-viewer-wrapper.swipe-mode {
-    overflow: hidden;
-    align-items: center;
-    touch-action: pan-y;
-    /* Allow native vertical scroll; horizontal swipes handled by JS */
-}
-
+/* Navigation mode: scroll only */
 .pdf-viewer-wrapper.scroll-mode {
     overflow-y: auto;
     /* Changed from 'hidden' to 'auto' so users can scroll horizontally
@@ -661,10 +654,6 @@ textarea:focus {
     /* NOTE: -webkit-overflow-scrolling: touch must NOT be used here.
        It creates an isolated scroll context on iOS that conflicts with
        JavaScript touch handlers and breaks all scrolling. */
-}
-
-.swipe-mode .pdf-page-container {
-    will-change: transform, opacity;
 }
 
 .pdf-page-container {

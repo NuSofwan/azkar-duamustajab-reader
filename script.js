@@ -17,8 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const zoomInBtn = document.getElementById('zoomIn');
     const zoomOutBtn = document.getElementById('zoomOut');
     const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
-    const navModeBtn = document.getElementById('navModeBtn');
-    const navModeIcon = navModeBtn.querySelector('i');
+
     const moreToolsBtn = document.getElementById('moreToolsBtn');
     const moreToolsMenu = document.getElementById('moreToolsMenu');
 
@@ -79,8 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedText = '';
     let selectedTextRect = null;
 
-    // Navigation mode: 'scroll' or 'swipe'
-    let navMode = localStorage.getItem('navMode') || 'scroll';
+    // Navigation is always scroll mode
 
     // Page-level canvas cache for instant page revisits (in-memory)
     // Key: `${bookName}_${pageNum}_${scale}`, Value: ImageBitmap
@@ -211,27 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Navigation Mode Toggle ---
-    const updateNavModeUI = () => {
-        if (navMode === 'scroll') {
-            navModeIcon.className = 'fa-solid fa-arrows-up-down';
-            navModeBtn.title = 'โหมดเลื่อนหน้า: เลื่อนลง (กดเพื่อเปลี่ยนเป็นปัดขวา)';
-            pdfViewerWrapper.classList.remove('swipe-mode');
-            pdfViewerWrapper.classList.add('scroll-mode');
-        } else {
-            navModeIcon.className = 'fa-solid fa-arrows-left-right';
-            navModeBtn.title = 'โหมดเลื่อนหน้า: ปัดซ้าย-ขวา (กดเพื่อเปลี่ยนเป็นเลื่อนลง)';
-            pdfViewerWrapper.classList.remove('scroll-mode');
-            pdfViewerWrapper.classList.add('swipe-mode');
-        }
-    };
-    updateNavModeUI();
-
-    navModeBtn.addEventListener('click', () => {
-        navMode = navMode === 'scroll' ? 'swipe' : 'scroll';
-        localStorage.setItem('navMode', navMode);
-        updateNavModeUI();
-    });
+    // Always use scroll mode
+    pdfViewerWrapper.classList.add('scroll-mode');
 
     // --- PDF Rendering (Phase 2) ---
     let currentRenderVersion = 0; // Incremented on each render to discard stale results
@@ -1432,7 +1411,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Scroll Mode: wheel event to change pages (desktop) ---
     let scrollCooldown = false;
     pdfViewerWrapper.addEventListener('wheel', (e) => {
-        if (navMode !== 'scroll' || !pdfDoc || scrollCooldown) return;
+        if (!pdfDoc || scrollCooldown) return;
 
         // Only trigger page change when scrolled to the edge
         const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
@@ -1469,7 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     pdfViewerWrapper.addEventListener('touchstart', (e) => {
         // Phase 6 Fix: Ignore pinch-to-zoom (multi-touch)
-        if (navMode !== 'scroll' || !pdfDoc || e.touches.length > 1) return;
+        if (!pdfDoc || e.touches.length > 1) return;
 
         // iOS Safari Landscape Fix: "Unstick" from hard scroll boundaries.
         // When scrollTop is exactly 0 or exactly at the maximum, iOS Safari
@@ -1500,7 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     pdfViewerWrapper.addEventListener('touchend', (e) => {
         // Phase 6 Fix: Ignore if there were multiple touches (pinch)
-        if (navMode !== 'scroll' || !pdfDoc || scrollTouchCooldown || e.changedTouches.length !== 1) return;
+        if (!pdfDoc || scrollTouchCooldown || e.changedTouches.length !== 1) return;
 
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
 
@@ -1552,118 +1531,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, { passive: true });
 
-    // --- Swipe Mode: touch swipe to change pages ---
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchDeltaX = 0;
-    let isSwiping = false;
-
-    pdfViewerWrapper.addEventListener('touchstart', (e) => {
-        if (navMode !== 'swipe' || !pdfDoc) return;
-        touchStartX = e.changedTouches[0].clientX;
-        touchStartY = e.changedTouches[0].clientY;
-        touchDeltaX = 0;
-        isSwiping = false;
-        pdfPageContainer.style.transition = 'none';
-    }, { passive: true });
-
-    pdfViewerWrapper.addEventListener('touchmove', (e) => {
-        if (navMode !== 'swipe' || !pdfDoc) return;
-        const currentX = e.changedTouches[0].clientX;
-        const currentY = e.changedTouches[0].clientY;
-        touchDeltaX = currentX - touchStartX;
-        const deltaY = Math.abs(currentY - touchStartY);
-
-        // Only swipe horizontally if horizontal movement > vertical
-        if (Math.abs(touchDeltaX) > deltaY && Math.abs(touchDeltaX) > 10) {
-            isSwiping = true;
-            // Note: e.preventDefault() is NOT needed here because CSS touch-action: pan-y
-            // already tells the browser not to handle horizontal panning.
-            // Using passive: true allows the browser to scroll immediately in scroll mode.
-            // Follow finger with resistance
-            const resistance = 0.4;
-            pdfPageContainer.style.transform = `translateX(${touchDeltaX * resistance}px)`;
-            pdfPageContainer.style.opacity = Math.max(0.5, 1 - Math.abs(touchDeltaX) / 600);
-        }
-    }, { passive: true });
-
-    pdfViewerWrapper.addEventListener('touchend', (e) => {
-        if (navMode !== 'swipe' || !pdfDoc || !isSwiping) {
-            pdfPageContainer.style.transform = '';
-            pdfPageContainer.style.opacity = '';
-            pdfPageContainer.style.transition = '';
-            return;
-        }
-
-        const threshold = 60;
-
-        if (touchDeltaX < -threshold && pageNum < pdfDoc.numPages) {
-            // Swipe left → next page (slide out left, new page slides in from right)
-            pdfPageContainer.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-            pdfPageContainer.style.transform = 'translateX(-100%)';
-            pdfPageContainer.style.opacity = '0';
-            setTimeout(() => {
-                pdfPageContainer.style.transition = 'none';
-                pdfPageContainer.style.transform = 'translateX(100%)';
-                pageNum++;
-                queueRenderPage(pageNum);
-                requestAnimationFrame(() => {
-                    pdfPageContainer.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-                    pdfPageContainer.style.transform = 'translateX(0)';
-                    pdfPageContainer.style.opacity = '1';
-                });
-            }, 300);
-        } else if (touchDeltaX > threshold && pageNum > 1) {
-            // Swipe right → prev page (slide out right, new page slides in from left)
-            pdfPageContainer.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-            pdfPageContainer.style.transform = 'translateX(100%)';
-            pdfPageContainer.style.opacity = '0';
-            setTimeout(() => {
-                pdfPageContainer.style.transition = 'none';
-                pdfPageContainer.style.transform = 'translateX(-100%)';
-                pageNum--;
-                queueRenderPage(pageNum);
-                requestAnimationFrame(() => {
-                    pdfPageContainer.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-                    pdfPageContainer.style.transform = 'translateX(0)';
-                    pdfPageContainer.style.opacity = '1';
-                });
-            }, 300);
-        } else {
-            // Snap back
-            pdfPageContainer.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-            pdfPageContainer.style.transform = 'translateX(0)';
-            pdfPageContainer.style.opacity = '1';
-        }
-
-        setTimeout(() => {
-            pdfPageContainer.style.transition = '';
-        }, 350);
-
-        isSwiping = false;
-    }, { passive: true });
-
     // Auto-load default
     selectBook(currentBook);
-
-    // --- Onboarding Tooltips ---
-    const onboardingTooltip = document.getElementById('onboardingTooltip');
-    const closeTooltipBtn = document.getElementById('closeTooltipBtn');
-
-    if (onboardingTooltip && closeTooltipBtn) {
-        const hasSeenTooltip = localStorage.getItem('hasSeenSwipeTooltip');
-        if (!hasSeenTooltip) {
-            // Show it after a short delay on first load
-            setTimeout(() => {
-                onboardingTooltip.style.display = 'flex';
-            }, 2000);
-
-            closeTooltipBtn.addEventListener('click', () => {
-                onboardingTooltip.style.display = 'none';
-                localStorage.setItem('hasSeenSwipeTooltip', 'true');
-            });
-        }
-    }
 });
 
 // --- Phase 6: PWA Service Worker ---
