@@ -80,9 +80,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Navigation is always scroll mode
 
+    // Detect iOS/mobile devices to limit memory-intensive background operations.
+    // iPhone 13 has devicePixelRatio=3: each PDF page canvas = ~30MB.
+    // Without limits, pre-rendering all pages would consume >900MB, causing iOS to
+    // kill the tab with "เกิดปัญหาตลอดเวลา" (A problem occurred repeatedly).
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+
     // Page-level canvas cache for instant page revisits (in-memory)
     // Key: `${bookName}_${pageNum}_${scale}`, Value: ImageBitmap
+    // On mobile keep at most 5 pages to stay well under iOS's ~150MB tab limit.
     const pageCanvasCache = {};
+    const MAX_CACHE_PAGES = isMobile ? 5 : 30;
+
+    const evictOldCacheEntries = () => {
+        const keys = Object.keys(pageCanvasCache);
+        if (keys.length <= MAX_CACHE_PAGES) return;
+        const toRemove = keys.slice(0, keys.length - MAX_CACHE_PAGES);
+        toRemove.forEach(k => {
+            try { if (pageCanvasCache[k]?.bitmap?.close) pageCanvasCache[k].bitmap.close(); } catch (e) { }
+            delete pageCanvasCache[k];
+        });
+    };
 
     // --- IndexedDB Page Image Cache ---
     // Caches rendered pages as JPEG blobs in IndexedDB for instant loading
@@ -161,11 +180,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // Smart output scale: caps canvas size to avoid exceeding browser limits
+    // Smart output scale: caps canvas size to avoid exceeding browser limits.
+    // On mobile we cap at 2x even for 3x DPR devices (iPhone 13 = 3x). This halves
+    // per-page canvas memory (~30MB → ~13MB) while keeping text crisp enough to read.
     const MAX_CANVAS_DIM = 4096;
+    const MAX_DPR_MOBILE = 2; // cap for mobile to limit RAM use
     const getOutputScale = (viewportWidth, viewportHeight) => {
         const dpr = window.devicePixelRatio || 1;
-        const idealScale = Math.max(dpr, 2);
+        const cappedDpr = isMobile ? Math.min(dpr, MAX_DPR_MOBILE) : dpr;
+        const idealScale = Math.max(cappedDpr, 2);
         const maxScaleW = MAX_CANVAS_DIM / viewportWidth;
         const maxScaleH = MAX_CANVAS_DIM / viewportHeight;
         return Math.min(idealScale, maxScaleW, maxScaleH);
@@ -337,10 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     pdfCtx.drawImage(offCanvas, 0, 0);
                     loadHighlights(num);
 
-                    // Cache in memory
+                    // Cache in memory (with eviction to avoid iOS memory crash)
                     if (window.createImageBitmap) {
                         createImageBitmap(offCanvas).then(bitmap => {
                             pageCanvasCache[cacheKey] = { bitmap, cssWidth: cssW, cssHeight: cssH };
+                            evictOldCacheEntries();
                         }).catch(() => { });
                     }
                     // Cache in IndexedDB
@@ -455,6 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (window.createImageBitmap) {
                         createImageBitmap(img).then(bitmap => {
                             pageCanvasCache[cacheKey] = { bitmap, cssWidth: cached.cssW, cssHeight: cached.cssH };
+                            evictOldCacheEntries();
                         }).catch(() => { });
                     }
                     URL.revokeObjectURL(url);
@@ -479,10 +504,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return page.render({ canvasContext: offCtx, transform, viewport }).promise.then(() => {
                     // Save to IndexedDB
                     idbSavePage(bookName, pNum, offCanvas, Math.floor(viewport.width), Math.floor(viewport.height));
-                    // Also cache in memory
+                    // Also cache in memory (with eviction to avoid iOS memory crash)
                     if (window.createImageBitmap) {
                         createImageBitmap(offCanvas).then(bitmap => {
                             pageCanvasCache[cacheKey] = { bitmap, cssWidth: Math.floor(viewport.width), cssHeight: Math.floor(viewport.height) };
+                            evictOldCacheEntries();
                         }).catch(() => { });
                     }
                 }).catch(err => console.warn("BgRender Cancelled:", err));
@@ -640,16 +666,23 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPage(pageNum);
             loadBookmarks();
             loadTOC(pdfDoc_);
-            // Priority pre-render first 5 pages for instant navigation
-            prerenderPages(bookName, pdfDoc_, 2, 5, true);
-            // Then pages 6-15 quickly
-            prerenderPages(bookName, pdfDoc_, 6, 15);
-            // Rest after a short delay
-            setTimeout(() => prerenderPages(bookName, pdfDoc_, 16, pdfDoc_.numPages), 500);
+            if (isMobile) {
+                // On mobile (especially iOS): only pre-render 2 pages ahead.
+                // Each canvas page at 3x DPR = ~30MB RAM. Rendering all pages
+                // would easily exceed iOS's ~150MB tab limit and cause a crash.
+                prerenderPages(bookName, pdfDoc_, 2, 3, true);
+            } else {
+                // Desktop: pre-render generously for instant navigation
+                prerenderPages(bookName, pdfDoc_, 2, 5, true);
+                prerenderPages(bookName, pdfDoc_, 6, 15);
+                setTimeout(() => prerenderPages(bookName, pdfDoc_, 16, pdfDoc_.numPages), 500);
+            }
         } else {
             // Pre-render first 5 pages of non-active book with priority
-            prerenderPages(bookName, pdfDoc_, 1, 5, true);
-            prerenderPages(bookName, pdfDoc_, 6, 10);
+            if (!isMobile) {
+                prerenderPages(bookName, pdfDoc_, 1, 5, true);
+                prerenderPages(bookName, pdfDoc_, 6, 10);
+            }
         }
     };
 
@@ -765,8 +798,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const promise = loadingTask.promise.then(pdfDoc_ => {
             pdfCache[bookName] = pdfDoc_;
-            prerenderPages(bookName, pdfDoc_, 1, 5, true);
-            prerenderPages(bookName, pdfDoc_, 6, 10);
+            if (!isMobile) {
+                prerenderPages(bookName, pdfDoc_, 1, 5, true);
+                prerenderPages(bookName, pdfDoc_, 6, 10);
+            }
             return pdfDoc_;
         }).catch(err => {
             console.warn('Range-request PDF load failed, trying full download...', err);
@@ -779,8 +814,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).promise;
             }).then(pdfDoc_ => {
                 pdfCache[bookName] = pdfDoc_;
-                prerenderPages(bookName, pdfDoc_, 1, 5, true);
-                prerenderPages(bookName, pdfDoc_, 6, 10);
+                if (!isMobile) {
+                    prerenderPages(bookName, pdfDoc_, 1, 5, true);
+                    prerenderPages(bookName, pdfDoc_, 6, 10);
+                }
                 return pdfDoc_;
             });
         });
