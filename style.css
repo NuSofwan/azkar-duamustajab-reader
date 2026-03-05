@@ -642,18 +642,20 @@ textarea:focus {
 /* Navigation mode: scroll only */
 .pdf-viewer-wrapper.scroll-mode {
     overflow-y: auto;
-    /* Changed from 'hidden' to 'auto' so users can scroll horizontally
-       when zoomed in. 'hidden' was silently blocking pan-x on mobile. */
     overflow-x: auto;
-    touch-action: auto;
-    /* 'contain' prevents scroll chaining to the parent (body) without blocking
-       the element's own scroll response. This avoids the iOS Safari bug where
-       the body absorbs the first reverse-direction gesture at scroll boundaries. */
+    /* pan-x pan-y: lets the browser handle native 1-finger panning (scroll),
+       but does NOT allow the browser's own pinch-zoom — which is what we want
+       so our JavaScript pinch-to-zoom handler gets first crack at 2-finger
+       gestures via preventDefault(). With 'auto', the browser would zoom the
+       whole page before our handler could intercept it. */
+    touch-action: pan-x pan-y;
     overscroll-behavior-y: contain;
-    overscroll-behavior-x: auto;
-    /* NOTE: -webkit-overflow-scrolling: touch must NOT be used here.
-       It creates an isolated scroll context on iOS that conflicts with
-       JavaScript touch handlers and breaks all scrolling. */
+    /* none: prevents iOS Safari from triggering back/forward navigation when
+       horizontally overscrolling at the left/right edge of the PDF page.
+       Regular in-bounds horizontal scroll (when zoomed) still works normally. */
+    overscroll-behavior-x: none;
+    /* Smooth momentum scrolling on iOS (important for fluid reading) */
+    -webkit-overflow-scrolling: touch;
 }
 
 .pdf-page-container {

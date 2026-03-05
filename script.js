@@ -1478,15 +1478,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
 
     pdfViewerWrapper.addEventListener('touchend', (e) => {
-        // Phase 6 Fix: Ignore if there were multiple touches (pinch)
-        if (!pdfDoc || scrollTouchCooldown || e.changedTouches.length !== 1) return;
+        // Ignore: pinch just ended, multi-touch, cooldown, or no PDF
+        if (!pdfDoc || scrollTouchCooldown || e.changedTouches.length !== 1 || wasPinching) return;
 
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
 
-        // === EARLY EXIT: ตรวจทิศทางก่อน ===
-        // ถ้าตวัดขึ้น (deltaY < 0) จะเปลี่ยนหน้าได้ก็ต่อเมื่ออยู่ล่างสุด
-        // ถ้าตวัดลง (deltaY > 0) จะเปลี่ยนหน้าได้ก็ต่อเมื่ออยู่บนสุด
-        // ถ้าไม่ตรงเงื่อนไข → return ทันที ไม่ต้องเสียเวลาตรวจอย่างอื่น
+        // === EARLY EXIT: check direction first ===
+        // Swipe up (deltaY < 0) → page change only when at bottom
+        // Swipe down (deltaY > 0) → page change only when at top
         const couldBeNextPage = deltaY < 0 && scrollTouchStartAtBottom;
         const couldBePrevPage = deltaY > 0 && scrollTouchStartAtTop;
         if (!couldBeNextPage && !couldBePrevPage) return;
@@ -1494,25 +1493,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const touchDuration = Date.now() - scrollTouchStartTime;
         const deltaX = Math.abs(e.changedTouches[0].clientX - scrollTouchStartX);
 
-        // ถ้าลากหน้าจอนานเกิน 350ms ให้ถือว่าเป็นการ "เลื่อนเพื่ออ่าน" ปล่อยผ่าน
-        if (touchDuration > 350) return;
+        // Gesture too slow to be an intentional page-turn (600ms is generous for natural swipes)
+        if (touchDuration > 600) return;
 
-        // ถ้าการตวัดนิ้วเป็นแนวนอนมากกว่าแนวตั้ง ถือว่าเป็นการแพน ไม่ใช่สลับหน้า
+        // Horizontal movement dominates → treat as a pan, not a page turn
         if (deltaX > Math.abs(deltaY) * 0.7) return;
 
-        // ถ้าเบราว์เซอร์เลื่อน scroll จริงระหว่าง touch → ไม่ใช่การเปลี่ยนหน้า
+        // If the wrapper actually scrolled a meaningful amount, the user was
+        // reading content — don't hijack it as a page-turn.
+        // Raised from 3 → 15 to tolerate iOS rubber-band micro-scroll.
         const scrollDelta = Math.abs(pdfViewerWrapper.scrollTop - scrollTouchStartScrollTop);
-        if (scrollDelta > 3) return;
+        if (scrollDelta > 15) return;
 
-        // ต้องเป็นการตวัดที่เร็วจริงๆ (velocity check)
+        // Velocity check: must be a deliberate flick, not a slow drag.
+        // Lowered from 0.3 → 0.15 so a relaxed swipe still triggers.
         const velocity = Math.abs(deltaY) / Math.max(touchDuration, 1);
-        if (velocity < 0.3) return;
+        if (velocity < 0.15) return;
 
         // Re-check edge position at touchend
         const atBottom = pdfViewerWrapper.scrollTop + pdfViewerWrapper.clientHeight >= pdfViewerWrapper.scrollHeight - 5;
         const atTop = pdfViewerWrapper.scrollTop <= 5;
 
-        const threshold = 100;
+        // Lowered from 100 → 40px so a short, confident flick is enough.
+        const threshold = 40;
 
         if (deltaY < -threshold && atBottom && scrollTouchStartAtBottom) {
             // Swiped up at bottom → next page
@@ -1528,6 +1531,74 @@ document.addEventListener('DOMContentLoaded', () => {
                 pdfViewerWrapper.scrollTop = pdfViewerWrapper.scrollHeight;
             });
             setTimeout(() => scrollTouchCooldown = false, 400);
+        }
+    }, { passive: true });
+
+    // --- Pinch-to-Zoom (2-finger gesture) ---
+    // isPinching: true while a 2-finger gesture is in progress
+    // wasPinching: stays true for 400ms after pinch ends, guards the scroll-
+    //              touchend handler so it never fires a page-turn right after
+    //              a pinch (they share the same touchend event).
+    let isPinching = false;
+    let wasPinching = false;
+    let pinchStartDist = 0;
+    let pinchStartScale = scale;
+    let pinchCurrentScale = scale;
+
+    const getTouchDist = (touches) => {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.hypot(dx, dy);
+    };
+
+    // Non-passive: must call preventDefault() to block browser's own pinch-zoom
+    pdfViewerWrapper.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 2 || !pdfDoc) return;
+        isPinching = true;
+        wasPinching = false;
+        pinchStartDist = getTouchDist(e.touches);
+        pinchStartScale = scale;
+        pinchCurrentScale = scale;
+        e.preventDefault(); // prevent browser zoom UI
+    }, { passive: false });
+
+    // Non-passive: call preventDefault() only for the 2-finger case so
+    // single-finger scroll continues to work natively.
+    pdfViewerWrapper.addEventListener('touchmove', (e) => {
+        if (!isPinching || e.touches.length !== 2) return;
+        e.preventDefault();
+
+        const dist = getTouchDist(e.touches);
+        const ratio = dist / pinchStartDist;
+        pinchCurrentScale = Math.min(5.0, Math.max(0.5, pinchStartScale * ratio));
+
+        // Immediate visual feedback via CSS transform (no canvas re-render yet)
+        const visualRatio = pinchCurrentScale / scale;
+        pdfPageContainer.style.transition = 'none';
+        pdfPageContainer.style.transformOrigin = 'center center';
+        pdfPageContainer.style.transform = `scale(${visualRatio})`;
+    }, { passive: false });
+
+    // On pinch end: remove the visual transform and re-render at the new scale
+    pdfViewerWrapper.addEventListener('touchend', (e) => {
+        if (!isPinching || e.touches.length >= 2) return;
+        isPinching = false;
+        wasPinching = true;
+        setTimeout(() => { wasPinching = false; }, 400);
+
+        // Remove live-preview transform
+        pdfPageContainer.style.transform = '';
+        pdfPageContainer.style.transformOrigin = '';
+        pdfPageContainer.style.transition = '';
+
+        // Snap to nearest 0.2 step for a crisp render
+        const snapped = Math.round(pinchCurrentScale * 5) / 5;
+        const finalScale = Math.min(5.0, Math.max(0.5, snapped));
+        if (Math.abs(finalScale - scale) >= 0.1) {
+            scale = finalScale;
+            pageRendering = false;
+            pageNumPending = null;
+            renderPage(pageNum);
         }
     }, { passive: true });
 
@@ -1547,8 +1618,14 @@ if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        // New update available, force reload
+                        // New update available — ask user before activating.
+                        // We post SKIP_WAITING to the waiting SW first so it activates
+                        // on reload, rather than calling skipWaiting() automatically
+                        // (which on iOS Safari can cause a jarring back-navigation).
                         if (confirm('มีเวอร์ชันใหม่พร้อมใช้งาน ต้องการโหลดแอปใหม่หรือไม่?')) {
+                            if (reg.waiting) {
+                                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            }
                             window.location.reload();
                         }
                     }

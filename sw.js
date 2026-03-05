@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dua-mustajab-v21';
+const CACHE_NAME = 'dua-mustajab-v22';
 const urlsToCache = [
     './',
     './index.html',
@@ -16,7 +16,11 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
-    self.skipWaiting();
+    // Do NOT call skipWaiting() here.
+    // Immediately activating a new SW while a page is open can cause iOS Safari
+    // to treat the controller change as a navigation event, triggering a
+    // back-animation ("bounce back"). Instead, the new SW waits until the JS
+    // update dialog is accepted, then receives a SKIP_WAITING message.
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
@@ -24,6 +28,13 @@ self.addEventListener('install', event => {
                 return cache.addAll(urlsToCache);
             })
     );
+});
+
+// Allow the page JS to trigger skipWaiting once the user has accepted the update.
+self.addEventListener('message', event => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
 });
 
 self.addEventListener('fetch', event => {
