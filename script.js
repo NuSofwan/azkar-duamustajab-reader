@@ -1527,7 +1527,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     pdfViewerWrapper.addEventListener('touchend', (e) => {
         // Ignore: pinch just ended, multi-touch, cooldown, or no PDF
-        if (!pdfDoc || scrollTouchCooldown || e.changedTouches.length !== 1 || wasPinching) return;
+        // isPinching guard: when one finger lifts during a pinch, this touchend fires
+        // BEFORE the pinch-touchend handler gets to set wasPinching=true (event listeners
+        // fire in registration order). Checking isPinching here catches that window.
+        if (!pdfDoc || scrollTouchCooldown || e.changedTouches.length !== 1 || isPinching || wasPinching) return;
 
         const deltaY = e.changedTouches[0].clientY - scrollTouchStartY;
 
