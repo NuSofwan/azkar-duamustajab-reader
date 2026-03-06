@@ -65,11 +65,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let pageRendering = false;
     let pageNumPending = null;
     let scale = 1.3; // Allow zooming
+    let hasCenteredInitialView = false;
 
     // Pending scroll correction applied at the end of the next render
     // (used by pinch-to-zoom to re-anchor the view to the pinch point)
     let pendingScrollLeft = null;
     let pendingScrollTop = null;
+    let pendingPinchAnchor = null;
 
     // Freehand Highlight State
     let isHighlightMode = false;
@@ -167,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 pdfPageContainer.style.transform = '';
                 pdfPageContainer.style.transformOrigin = '';
                 pdfPageContainer.style.transition = '';
-            if (pinchPreviewRaf) { cancelAnimationFrame(pinchPreviewRaf); pinchPreviewRaf = 0; }
 
                 pdfCanvas.width = img.width;
                 pdfCanvas.height = img.height;
@@ -294,13 +295,30 @@ document.addEventListener('DOMContentLoaded', () => {
             // dimensions in the same synchronous block; setting scrollLeft/Top
             // here forces the browser to resolve the layout immediately, so the
             // scroll limit is correct and the user sees only the final state.
-            if (pendingScrollLeft !== null) {
+            if (pendingPinchAnchor) {
+                const wrapperRect = pdfViewerWrapper.getBoundingClientRect();
+                const containerRect = pdfPageContainer.getBoundingClientRect();
+                const containerScrollLeft = containerRect.left - wrapperRect.left + pdfViewerWrapper.scrollLeft;
+                const containerScrollTop = containerRect.top - wrapperRect.top + pdfViewerWrapper.scrollTop;
+                pdfViewerWrapper.scrollLeft = Math.max(0, containerScrollLeft + pendingPinchAnchor.localX - pendingPinchAnchor.viewportX);
+                pdfViewerWrapper.scrollTop = Math.max(0, containerScrollTop + pendingPinchAnchor.localY - pendingPinchAnchor.viewportY);
+                pendingPinchAnchor = null;
+            } else if (pendingScrollLeft !== null) {
                 const tl = pendingScrollLeft;
                 const tt = pendingScrollTop;
                 pendingScrollLeft = null;
                 pendingScrollTop = null;
                 pdfViewerWrapper.scrollLeft = tl;
                 pdfViewerWrapper.scrollTop = tt;
+            }
+            pdfPageContainer.style.willChange = '';
+            if (!hasCenteredInitialView && pageNum === 1) {
+                const key = `${currentBook}_reading_position`;
+                if (!localStorage.getItem(key)) {
+                    const target = Math.max(0, (pdfPageContainer.offsetWidth - pdfViewerWrapper.clientWidth) / 2);
+                    pdfViewerWrapper.scrollLeft = target;
+                    hasCenteredInitialView = true;
+                }
             }
             if (pageNumPending !== null) {
                 const pending = pageNumPending;
@@ -1661,9 +1679,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Used to translate the live preview so panning works while pinching.
     let pinchLatestCenterX = 0;
     let pinchLatestCenterY = 0;
-    let lastTapTime = 0;
-    let lastTapX = 0;
-    let lastTapY = 0;
+    let pinchPreviewRaf = 0;
+    let pinchPreviewRatio = 1;
+    let pinchPreviewPanX = 0;
+    let pinchPreviewPanY = 0;
+
+    const applyPinchPreview = () => {
+        pinchPreviewRaf = 0;
+        pdfPageContainer.style.transition = 'none';
+        pdfPageContainer.style.willChange = 'transform';
+        pdfPageContainer.style.transformOrigin = `${pinchOriginX}px ${pinchOriginY}px`;
+        pdfPageContainer.style.transform = `translate3d(${pinchPreviewPanX}px, ${pinchPreviewPanY}px, 0) scale(${pinchPreviewRatio})`;
+    };
 
     const getTouchDist = (touches) => {
         const dx = touches[0].clientX - touches[1].clientX;
@@ -1708,25 +1735,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         pinchLatestCenterX = pinchCenterX;
         pinchLatestCenterY = pinchCenterY;
+        pinchPreviewRatio = 1;
+        pinchPreviewPanX = 0;
+        pinchPreviewPanY = 0;
+        pdfPageContainer.style.willChange = 'transform';
 
         e.preventDefault(); // prevent browser zoom UI
     }, { passive: false });
 
     // Non-passive: call preventDefault() only for the 2-finger case so
     // single-finger scroll continues to work natively.
-    const applyPinchPreview = () => {
-        pinchPreviewRaf = 0;
-        pdfPageContainer.style.transition = 'none';
-        pdfPageContainer.style.transformOrigin = `${pinchOriginX}px ${pinchOriginY}px`;
-        pdfPageContainer.style.transform = `translate(${pinchPreviewPanX}px, ${pinchPreviewPanY}px) scale(${pinchPreviewScaleRatio})`;
-    };
-
     pdfViewerWrapper.addEventListener('touchmove', (e) => {
         if (!isPinching || e.touches.length !== 2) return;
         e.preventDefault();
 
         const dist = getTouchDist(e.touches);
-        const ratio = dist / pinchStartDist;
+        const ratio = dist / Math.max(pinchStartDist, 1);
         pinchCurrentScale = Math.min(5.0, Math.max(0.5, pinchStartScale * ratio));
 
         const mid = getTouchMid(e.touches);
@@ -1734,11 +1758,13 @@ document.addEventListener('DOMContentLoaded', () => {
         pinchLatestCenterX = mid.x - wrapperRect.left;
         pinchLatestCenterY = mid.y - wrapperRect.top;
 
-        pinchPreviewScaleRatio = pinchCurrentScale / scale;
+        pinchPreviewRatio = pinchCurrentScale / scale;
         pinchPreviewPanX = pinchLatestCenterX - pinchCenterX;
         pinchPreviewPanY = pinchLatestCenterY - pinchCenterY;
 
-        if (!pinchPreviewRaf) pinchPreviewRaf = requestAnimationFrame(applyPinchPreview);
+        if (!pinchPreviewRaf) {
+            pinchPreviewRaf = requestAnimationFrame(applyPinchPreview);
+        }
     }, { passive: false });
 
     // On pinch end: remove the visual transform and re-render at the new scale
@@ -1748,68 +1774,34 @@ document.addEventListener('DOMContentLoaded', () => {
         wasPinching = true;
         setTimeout(() => { wasPinching = false; }, 400);
 
-        // NOTE: We intentionally do NOT remove the CSS preview transform here.
-        // Removing it now (before the canvas is re-rendered at the new scale)
-        // would cause a visible "snap back" to the old scale for one or more
-        // frames.  Instead we keep it so the user continues to see the zoomed
-        // preview while the re-render is in progress.  The transform is cleared
-        // atomically together with the canvas resize inside applyCanvasDimensions
-        // (and drawCachedImage), so the browser only ever paints the correct
-        // final state.
+        if (pinchPreviewRaf) {
+            cancelAnimationFrame(pinchPreviewRaf);
+            pinchPreviewRaf = 0;
+            applyPinchPreview();
+        }
 
-        // Use a fine-grained step for crispness without the large visual jump of 0.2.
-        const snapped = Math.round(pinchCurrentScale * 20) / 20;
-        const finalScale = Math.min(5.0, Math.max(0.5, snapped));
-        if (Math.abs(finalScale - scale) >= 0.01) {
-            const scaleRatio = finalScale / scale;
-
-            // Smart anchor: re-anchor to the exact touched content point after re-render.
-            // This keeps the point under the fingers fixed, including left-edge pinches.
-            pendingAnchorLocalX = pinchOriginX * scaleRatio;
-            pendingAnchorLocalY = pinchOriginY * scaleRatio;
-            pendingAnchorViewportX = pinchLatestCenterX;
-            pendingAnchorViewportY = pinchLatestCenterY;
-            pendingScrollLeft = null;
-            pendingScrollTop = null;
-
+        // Keep the live preview visible until the sharp re-render completes.
+        const finalScale = Math.min(5.0, Math.max(0.5, Math.round(pinchCurrentScale * 100) / 100));
+        if (Math.abs(finalScale - scale) >= 0.02) {
+            const previousScale = scale;
+            const scaleRatio = finalScale / previousScale;
             scale = finalScale;
+            pendingPinchAnchor = {
+                localX: pinchOriginX * scaleRatio,
+                localY: pinchOriginY * scaleRatio,
+                viewportX: pinchLatestCenterX,
+                viewportY: pinchLatestCenterY
+            };
+
             pageRendering = false;
             pageNumPending = null;
             renderPage(pageNum);
         } else {
-            // Scale change too small to re-render — remove the CSS preview
-            // transform immediately (no re-render means applyCanvasDimensions
-            // won't fire, so we must clean up here).
             pdfPageContainer.style.transform = '';
             pdfPageContainer.style.transformOrigin = '';
             pdfPageContainer.style.transition = '';
+            pdfPageContainer.style.willChange = '';
         }
-    }, { passive: true });
-
-
-    // Double-tap zoom at the tapped point (like native reader apps)
-    pdfViewerWrapper.addEventListener('touchend', (e) => {
-        if (!pdfDoc || isPinching || wasPinching || e.changedTouches.length !== 1) return;
-        const touch = e.changedTouches[0];
-        const now = Date.now();
-        const dt = now - lastTapTime;
-        const move = Math.hypot(touch.clientX - lastTapX, touch.clientY - lastTapY);
-        if (dt > 0 && dt < 280 && move < 24) {
-            const targetScale = scale < 2 ? Math.min(2.4, 5.0) : 1.0;
-            zoomToScaleAtViewportPoint(targetScale, touch.clientX, touch.clientY);
-            lastTapTime = 0;
-            lastTapX = 0;
-            lastTapY = 0;
-            return;
-        }
-        lastTapTime = now;
-        lastTapX = touch.clientX;
-        lastTapY = touch.clientY;
-    }, { passive: true });
-
-    pdfViewerWrapper.addEventListener('scroll', () => {
-        if (!pdfDoc || isPinching) return;
-        saveReaderStateSoon();
     }, { passive: true });
 
     // Auto-load default

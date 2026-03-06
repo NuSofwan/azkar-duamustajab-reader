@@ -629,8 +629,7 @@ textarea:focus {
     min-height: 0;
     overflow: auto;
     display: flex;
-    justify-content: flex-start;
-    align-items: flex-start;
+    justify-content: center;
     padding: 1rem;
     /* subtle pattern for PDF background */
     background-color: rgba(0, 0, 0, 0.03);
@@ -664,8 +663,7 @@ textarea:focus {
     box-shadow: var(--shadow-md);
     background-color: white;
     /* PDF page ground is typically white */
-    margin: 0;
-    transform-origin: top left;
+    margin: 0 auto;
     /* Remove padding or borders so canvas matches container perfectly */
 }
 
@@ -1211,12 +1209,4 @@ input:checked+.slider:before {
         opacity: 0;
         pointer-events: none;
     }
-}
-/* Precise pinch/zoom anchor fixes */
-.pdf-viewer-wrapper{
-    touch-action: pan-x pan-y;
-}
-
-#pdfCanvas{
-    touch-action: none;
 }
