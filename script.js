@@ -163,6 +163,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = URL.createObjectURL(data.blob);
             const img = new Image();
             img.onload = () => {
+                // Same atomic clear as applyCanvasDimensions (see comment there).
+                pdfPageContainer.style.transform = '';
+                pdfPageContainer.style.transformOrigin = '';
+                pdfPageContainer.style.transition = '';
+
                 pdfCanvas.width = img.width;
                 pdfCanvas.height = img.height;
                 pdfCanvas.style.width = data.cssW + 'px';
@@ -244,6 +249,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentRenderVersion = 0; // Incremented on each render to discard stale results
 
     const applyCanvasDimensions = (backingW, backingH, cssW, cssH) => {
+        // Clear any live pinch-zoom CSS preview transform FIRST, in the same
+        // synchronous block as the canvas resize.  Because all these DOM changes
+        // happen before the browser gets a chance to paint, the user never sees
+        // the intermediate state where the transform is on but the canvas is
+        // already at the new (larger) size.
+        pdfPageContainer.style.transform = '';
+        pdfPageContainer.style.transformOrigin = '';
+        pdfPageContainer.style.transition = '';
+
         pdfCanvas.width = backingW;
         pdfCanvas.height = backingH;
         pdfCanvas.style.width = cssW + 'px';
@@ -264,17 +278,28 @@ document.addEventListener('DOMContentLoaded', () => {
         // Helper: finish rendering and process pending
         const finishRender = () => {
             pageRendering = false;
+
+            // Safety net: if the render was aborted/stale before
+            // applyCanvasDimensions could clear the transform, do it here so we
+            // never leave a stale CSS scale transform on the container.
+            pdfPageContainer.style.transform = '';
+            pdfPageContainer.style.transformOrigin = '';
+            pdfPageContainer.style.transition = '';
+
             // Apply pinch-zoom scroll correction now that the canvas has been
             // resized to the new scale (scrollLeft/Top limits have updated).
+            // We set the scroll synchronously (no requestAnimationFrame) because
+            // applyCanvasDimensions has already updated the container's CSS
+            // dimensions in the same synchronous block; setting scrollLeft/Top
+            // here forces the browser to resolve the layout immediately, so the
+            // scroll limit is correct and the user sees only the final state.
             if (pendingScrollLeft !== null) {
                 const tl = pendingScrollLeft;
                 const tt = pendingScrollTop;
                 pendingScrollLeft = null;
                 pendingScrollTop  = null;
-                requestAnimationFrame(() => {
-                    pdfViewerWrapper.scrollLeft = tl;
-                    pdfViewerWrapper.scrollTop  = tt;
-                });
+                pdfViewerWrapper.scrollLeft = tl;
+                pdfViewerWrapper.scrollTop  = tt;
             }
             if (pageNumPending !== null) {
                 const pending = pageNumPending;
@@ -1680,10 +1705,14 @@ document.addEventListener('DOMContentLoaded', () => {
         wasPinching = true;
         setTimeout(() => { wasPinching = false; }, 400);
 
-        // Remove live-preview transform
-        pdfPageContainer.style.transform = '';
-        pdfPageContainer.style.transformOrigin = '';
-        pdfPageContainer.style.transition = '';
+        // NOTE: We intentionally do NOT remove the CSS preview transform here.
+        // Removing it now (before the canvas is re-rendered at the new scale)
+        // would cause a visible "snap back" to the old scale for one or more
+        // frames.  Instead we keep it so the user continues to see the zoomed
+        // preview while the re-render is in progress.  The transform is cleared
+        // atomically together with the canvas resize inside applyCanvasDimensions
+        // (and drawCachedImage), so the browser only ever paints the correct
+        // final state.
 
         // Snap to nearest 0.2 step for a crisp render
         const snapped = Math.round(pinchCurrentScale * 5) / 5;
@@ -1715,6 +1744,13 @@ document.addEventListener('DOMContentLoaded', () => {
             pageRendering = false;
             pageNumPending = null;
             renderPage(pageNum);
+        } else {
+            // Scale change too small to re-render — remove the CSS preview
+            // transform immediately (no re-render means applyCanvasDimensions
+            // won't fire, so we must clean up here).
+            pdfPageContainer.style.transform = '';
+            pdfPageContainer.style.transformOrigin = '';
+            pdfPageContainer.style.transition = '';
         }
     }, { passive: true });
 
