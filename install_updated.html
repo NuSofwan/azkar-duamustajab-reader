@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#10b981">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.png" type="image/png">
+    <link rel="apple-touch-icon" href="icon.png">
+    <title>ดาวน์โหลดแอป – Dua Mustajab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #07111f;
+            --panel: rgba(255,255,255,0.06);
+            --panel-strong: rgba(255,255,255,0.09);
+            --stroke: rgba(255,255,255,0.10);
+            --text: rgba(255,255,255,0.96);
+            --muted: rgba(255,255,255,0.56);
+            --android: #22d26c;
+            --android-soft: rgba(34,210,108,0.14);
+            --ios: #67a8ff;
+            --ios-soft: rgba(103,168,255,0.14);
+            --shadow: 0 22px 60px rgba(0,0,0,0.35);
+            --radius: 24px;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Sarabun', system-ui, sans-serif;
+            color: var(--text);
+            background: radial-gradient(circle at top left, rgba(16,185,129,0.12), transparent 35%),
+                        radial-gradient(circle at top right, rgba(96,165,250,0.12), transparent 35%),
+                        linear-gradient(180deg, #07111f 0%, #091521 100%);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background:
+              linear-gradient(transparent 0 97%, rgba(255,255,255,0.04) 97% 100%),
+              linear-gradient(90deg, transparent 0 97%, rgba(255,255,255,0.03) 97% 100%);
+            background-size: 30px 30px;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent 80%);
+        }
+
+        #dots {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 50;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.28);
+            transition: all .28s ease;
+        }
+        .dot.active {
+            width: 28px;
+            background: rgba(255,255,255,0.92);
+        }
+
+        #hint {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: rgba(255,255,255,0.45);
+            pointer-events: none;
+            transition: opacity .28s ease;
+        }
+        .hint-arrow { display: flex; gap: 4px; }
+        .hint-arrow i { animation: nudge 1.4s infinite ease-in-out; }
+        .hint-arrow i:nth-child(2){ animation-delay:.12s; opacity:.75; }
+        .hint-arrow i:nth-child(3){ animation-delay:.24s; opacity:.5; }
+        #hint span { font-size: .76rem; }
+        @keyframes nudge { 0%,100%{transform:none; opacity:1;} 50%{transform:translateX(5px); opacity:.55;} }
+
+        #wrap {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+        #wrap::-webkit-scrollbar { display: none; }
+
+        .page {
+            width: 100vw;
+            min-width: 100vw;
+            height: 100%;
+            scroll-snap-align: start;
+            overflow: hidden;
+            position: relative;
+        }
+        .p-android { background: linear-gradient(135deg, #071320 0%, #083120 58%, #0b3f28 100%); }
+        .p-ios { background: linear-gradient(135deg, #071320 0%, #0c1d42 56%, #0c3153 100%); }
+        .p-app { background: #0f172a; }
+
+        .page-shell {
+            height: 100%;
+            display: grid;
+            grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+            gap: 28px;
+            align-items: center;
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 34px 28px 34px;
+        }
+
+        .left-pane {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            width: fit-content;
+            padding: 8px 16px;
+            border-radius: 999px;
+            font-size: .92rem;
+            font-weight: 700;
+            border: 1px solid;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+        .eyebrow.android { color: #7ef0aa; background: var(--android-soft); border-color: rgba(34,210,108,.34); }
+        .eyebrow.ios { color: #a8ceff; background: var(--ios-soft); border-color: rgba(103,168,255,.34); }
+
+        .title {
+            font-size: clamp(2rem, 5vw, 3.9rem);
+            line-height: 1.02;
+            font-weight: 800;
+            letter-spacing: -.02em;
+        }
+        .subtitle {
+            max-width: 34ch;
+            color: var(--muted);
+            font-size: 1rem;
+            line-height: 1.65;
+        }
+
+        .micro-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .micro-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 12px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.11);
+            color: rgba(255,255,255,0.78);
+            font-size: .86rem;
+            font-weight: 600;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .hero-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.82);
+            font-size: .88rem;
+            font-weight: 600;
+        }
+
+        .phone-stage {
+            perspective: 1800px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 390px;
+        }
+        .phone-mock {
+            width: min(430px, 92%);
+            aspect-ratio: 0.51;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateY(-18deg) rotateX(9deg);
+            animation: phoneFloat 6.5s ease-in-out infinite;
+            filter: drop-shadow(0 30px 45px rgba(0,0,0,0.38));
+        }
+        .p-ios .phone-mock { transform: rotateY(18deg) rotateX(9deg); }
+        @keyframes phoneFloat {
+            0%,100% { transform: translateY(0) rotateY(-18deg) rotateX(9deg); }
+            50% { transform: translateY(-10px) rotateY(-15deg) rotateX(7deg); }
+        }
+        .p-ios .phone-mock { animation-name: phoneFloatIOS; }
+        @keyframes phoneFloatIOS {
+            0%,100% { transform: translateY(0) rotateY(18deg) rotateX(9deg); }
+            50% { transform: translateY(-10px) rotateY(15deg) rotateX(7deg); }
+        }
+
+        .phone-body {
+            position: absolute;
+            inset: 0;
+            border-radius: 48px;
+            background: linear-gradient(145deg, #1d2635, #0b1119 62%, #05080e);
+            border: 1px solid rgba(255,255,255,0.16);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(255,255,255,.05);
+        }
+        .phone-body::before {
+            content: '';
+            position: absolute;
+            inset: 8px;
+            border-radius: 40px;
+            background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0) 20%);
+            pointer-events: none;
+        }
+        .phone-side {
+            position: absolute;
+            top: 4%;
+            bottom: 4%;
+            width: 18px;
+            right: -8px;
+            border-radius: 0 16px 16px 0;
+            background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.25));
+            transform: translateZ(-2px);
+            opacity: .9;
+        }
+        .phone-screen {
+            position: absolute;
+            inset: 14px;
+            border-radius: 36px;
+            overflow: hidden;
+            background: linear-gradient(180deg, #0d1727, #12263f 45%, #0b1a2c);
+            border: 1px solid rgba(255,255,255,.06);
+        }
+        .phone-notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 112px;
+            height: 24px;
+            background: #05080e;
+            border-radius: 0 0 18px 18px;
+            z-index: 3;
+        }
+        .screen-ui {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 46px 18px 18px;
+            gap: 12px;
+            background:
+                radial-gradient(circle at 30% 15%, rgba(255,255,255,.20), transparent 30%),
+                linear-gradient(180deg, rgba(255,255,255,.06), transparent 26%),
+                linear-gradient(180deg, #0d1727, #14243b 45%, #102131);
+        }
+        .screen-bar {
+            height: 26px;
+            border-radius: 14px;
+            background: rgba(255,255,255,.08);
+            border: 1px solid rgba(255,255,255,.08);
+        }
+        .screen-card {
+            flex: 1;
+            border-radius: 24px;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.08);
+            padding: 14px;
+            display: grid;
+            grid-template-rows: 1fr auto;
+            gap: 14px;
+        }
+        .screen-lines { display: flex; flex-direction: column; gap: 10px; }
+        .screen-line {
+            height: 10px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
+        }
+        .screen-line.short { width: 68%; }
+        .screen-line.mid { width: 84%; }
+        .install-callout {
+            padding: 16px;
+            border-radius: 18px;
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: -.01em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+        }
+        .android-callout { background: rgba(34,210,108,.14); color: #88f2b3; }
+        .ios-callout { background: rgba(103,168,255,.15); color: #b8d7ff; }
+        .touch-glow {
+            position: absolute;
+            width: 92px;
+            height: 92px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,.24), rgba(255,255,255,0));
+            animation: tapPulse 2.2s infinite ease-in-out;
+            mix-blend-mode: screen;
+        }
+        .touch-android { top: 58%; right: 12%; }
+        .touch-ios { bottom: 12%; left: 50%; transform: translateX(-50%); }
+        @keyframes tapPulse {
+            0%,100% { transform: scale(.72); opacity: .25; }
+            50% { transform: scale(1.06); opacity: .82; }
+        }
+        .touch-ios { animation-name: tapPulseCenter; }
+        @keyframes tapPulseCenter {
+            0%,100% { transform: translateX(-50%) scale(.72); opacity: .25; }
+            50% { transform: translateX(-50%) scale(1.06); opacity: .82; }
+        }
+
+        .right-pane {
+            height: min(100%, 880px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            align-content: center;
+        }
+        .card {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            min-height: 112px;
+            padding: 16px;
+            background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
+            border: 1px solid rgba(255,255,255,.11);
+            border-radius: 20px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity .42s ease, transform .42s ease, border-color .25s ease, background .25s ease;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .card.show { opacity: 1; transform: translateY(0); }
+        .card:hover { border-color: rgba(255,255,255,.2); background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06)); }
+        .card-highlight { background: linear-gradient(180deg, rgba(34,210,108,.15), rgba(34,210,108,.09)); border-color: rgba(34,210,108,.28); }
+        .card-highlight.ios-hl { background: linear-gradient(180deg, rgba(103,168,255,.16), rgba(103,168,255,.09)); border-color: rgba(103,168,255,.30); }
+        .num {
+            min-width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: .96rem;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+        .num-android { background: linear-gradient(135deg, #3af07c, #18b95b); color: #062112; }
+        .num-ios { background: linear-gradient(135deg, #97c7ff, #4d94ff); color: #071a3a; }
+        .card-body h3 {
+            font-size: 1rem;
+            line-height: 1.35;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .card-body p {
+            font-size: .87rem;
+            line-height: 1.55;
+            color: var(--muted);
+        }
+        .icon-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 11px;
+            border-radius: 12px;
+            margin-top: 10px;
+            font-size: .8rem;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,.12);
+        }
+        .icon-badge-green { background: rgba(34,210,108,.13); color: #8df2b8; }
+        .icon-badge-blue { background: rgba(103,168,255,.14); color: #bdd9ff; }
+
+        .success-card {
+            margin-top: 16px;
+            padding: 18px 20px;
+            border-radius: 22px;
+            background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.05));
+            border: 1px solid rgba(255,255,255,.12);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            opacity: 0;
+            transform: translateY(14px);
+            transition: opacity .42s ease .55s, transform .42s ease .55s;
+            box-shadow: var(--shadow);
+        }
+        .success-card.show { opacity: 1; transform: translateY(0); }
+        .success-card .check {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 1.25rem;
+            background: rgba(255,255,255,.10);
+            color: #82efaf;
+        }
+        .p-ios .success-card .check { color: #9dcbff; }
+        .success-card h3 { font-size: 1rem; margin-bottom: 2px; }
+        .success-card p { font-size: .84rem; color: var(--muted); line-height: 1.5; }
+
+        .page-switching .phone-mock { animation-duration: 3s; }
+
+        .p-app iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        @media (max-width: 1180px) {
+            .page-shell {
+                grid-template-columns: 1fr;
+                gap: 18px;
+                padding: 40px 20px 34px;
+                overflow-y: auto;
+            }
+            .left-pane { align-items: center; text-align: center; }
+            .subtitle { max-width: 48ch; }
+            .phone-stage { min-height: 320px; }
+            .phone-mock { width: min(360px, 78vw); }
+            .right-pane { height: auto; }
+            .steps-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 760px) {
+            html, body { overflow: hidden; }
+            .page { overflow-y: auto; }
+            .page-shell {
+                padding: 54px 16px 90px;
+                gap: 18px;
+            }
+            .title { font-size: 2.2rem; }
+            .subtitle { font-size: .92rem; }
+            .phone-stage { min-height: 250px; }
+            .phone-mock { width: min(300px, 74vw); }
+            .steps-grid { grid-template-columns: 1fr; }
+            .card { min-height: unset; }
+            #hint { bottom: 12px; }
+        }
+    </style>
+</head>
+<body>
+<script>
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+        window.location.replace('./index.html');
+    }
+</script>
+
+<div id="dots">
+    <span class="dot active" data-pg="0"></span>
+    <span class="dot" data-pg="1"></span>
+    <span class="dot" data-pg="2"></span>
+</div>
+
+<div id="hint">
+    <div class="hint-arrow">
+        <i class="fa-solid fa-chevron-right"></i>
+        <i class="fa-solid fa-chevron-right"></i>
+        <i class="fa-solid fa-chevron-right"></i>
+    </div>
+    <span id="hintText">ปัดซ้ายเพื่อดูขั้นตอน iOS</span>
+</div>
+
+<div id="wrap">
+    <section class="page p-android" id="pg0">
+        <div class="page-shell">
+            <div class="left-pane">
+                <div class="eyebrow android"><i class="fa-brands fa-android"></i> Android</div>
+                <h1 class="title">ติดตั้งเว็บแอปบน Android</h1>
+                <p class="subtitle">เปิดผ่าน Google Chrome แล้วเพิ่มลงในหน้าจอหลักได้ทันที หน้านี้ถูกจัดใหม่ให้เห็นมือถือและขั้นตอนทั้งหมดในหน้าเดียวบนจอใหญ่</p>
+                <div class="micro-badges">
+                    <div class="micro-badge"><i class="fa-solid fa-bolt"></i> โหลดไว</div>
+                    <div class="micro-badge"><i class="fa-solid fa-mobile-screen"></i> เต็มจอเหมือนแอป</div>
+                    <div class="micro-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> UI แบบ App Store</div>
+                </div>
+                <div class="hero-cta">
+                    <div class="hero-chip"><i class="fa-brands fa-google-play"></i> ใช้ Google Chrome</div>
+                    <div class="hero-chip"><i class="fa-solid fa-house"></i> เพิ่มลงหน้าจอหลัก</div>
+                </div>
+                <div class="phone-stage">
+                    <div class="phone-mock" aria-hidden="true">
+                        <div class="phone-body"></div>
+                        <div class="phone-side"></div>
+                        <div class="phone-screen">
+                            <div class="phone-notch"></div>
+                            <div class="screen-ui">
+                                <div class="screen-bar"></div>
+                                <div class="screen-card">
+                                    <div class="screen-lines">
+                                        <div class="screen-line"></div>
+                                        <div class="screen-line mid"></div>
+                                        <div class="screen-line short"></div>
+                                        <div class="screen-line"></div>
+                                        <div class="screen-line mid"></div>
+                                        <div class="screen-line short"></div>
+                                    </div>
+                                    <div class="install-callout android-callout"><i class="fa-solid fa-plus"></i> เพิ่มลงในหน้าจอหลัก</div>
+                                </div>
+                            </div>
+                            <div class="touch-glow touch-android"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="right-pane">
+                <div class="steps-grid" id="stepsA">
+                    <div class="card"><div class="num num-android">1</div><div class="card-body"><h3>🌐 เปิด Google Chrome</h3><p>ต้องใช้ Chrome เท่านั้น เพราะรองรับการติดตั้ง PWA โดยตรง</p></div></div>
+                    <div class="card"><div class="num num-android">2</div><div class="card-body"><h3>🔗 เข้าสู่เว็บไซต์</h3><p>เปิดเว็บแอปนี้ให้โหลดครบในแถบ URL ของ Chrome</p></div></div>
+                    <div class="card card-highlight"><div class="num num-android">3</div><div class="card-body"><h3>⋮ กดเมนู 3 จุด</h3><p>กดไอคอนเมนูที่มุมบนขวาของ Chrome</p><div class="icon-badge icon-badge-green"><i class="fa-solid fa-ellipsis-vertical"></i> เมนู Chrome</div></div></div>
+                    <div class="card card-highlight"><div class="num num-android">4</div><div class="card-body"><h3>📲 เลือก “เพิ่มลงในหน้าจอหลัก”</h3><p>เลื่อนลงในเมนูแล้วแตะรายการนี้</p><div class="icon-badge icon-badge-green"><i class="fa-solid fa-plus"></i> เพิ่มลงในหน้าจอหลัก</div></div></div>
+                    <div class="card card-highlight"><div class="num num-android">5</div><div class="card-body"><h3>✅ กด “เพิ่ม”</h3><p>ยืนยันชื่อแอปและกดเพิ่มเพื่อติดตั้งทันที</p><div class="icon-badge icon-badge-green"><i class="fa-solid fa-check"></i> เพิ่ม</div></div></div>
+                    <div class="card"><div class="num num-android">6</div><div class="card-body"><h3>🎉 เปิดแอปจากหน้าจอหลัก</h3><p>หลังติดตั้งแล้วจะเปิดได้แบบเต็มจอเหมือนแอปจริง</p></div></div>
+                </div>
+                <div class="success-card" id="okA">
+                    <div class="check"><i class="fa-solid fa-circle-check"></i></div>
+                    <div><h3>พร้อมใช้งานแล้ว</h3><p>ปัดซ้ายเพื่อดูขั้นตอนสำหรับ iPhone / iPad หรือปัดต่อเพื่อเปิดแอป</p></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="page p-ios" id="pg1">
+        <div class="page-shell">
+            <div class="left-pane">
+                <div class="eyebrow ios"><i class="fa-brands fa-apple"></i> iPhone / iPad</div>
+                <h1 class="title">ติดตั้งเว็บแอปบน iPhone / iPad</h1>
+                <p class="subtitle">ใช้ Safari เท่านั้น แล้วเพิ่มไปที่หน้าจอโฮมได้ทันที พร้อม mockup มือถือแบบ 3D และแอนิเมชันที่นุ่มขึ้นเวลาเลื่อนสลับหน้า</p>
+                <div class="micro-badges">
+                    <div class="micro-badge"><i class="fa-solid fa-share-from-square"></i> ใช้ปุ่ม Share</div>
+                    <div class="micro-badge"><i class="fa-solid fa-house"></i> Add to Home Screen</div>
+                    <div class="micro-badge"><i class="fa-solid fa-layer-group"></i> เห็นครบในหน้าเดียว</div>
+                </div>
+                <div class="hero-cta">
+                    <div class="hero-chip"><i class="fa-brands fa-safari"></i> เปิดผ่าน Safari</div>
+                    <div class="hero-chip"><i class="fa-solid fa-plus"></i> เพิ่มไปที่หน้าจอโฮม</div>
+                </div>
+                <div class="phone-stage">
+                    <div class="phone-mock" aria-hidden="true">
+                        <div class="phone-body"></div>
+                        <div class="phone-side"></div>
+                        <div class="phone-screen">
+                            <div class="phone-notch"></div>
+                            <div class="screen-ui">
+                                <div class="screen-bar"></div>
+                                <div class="screen-card">
+                                    <div class="screen-lines">
+                                        <div class="screen-line"></div>
+                                        <div class="screen-line mid"></div>
+                                        <div class="screen-line short"></div>
+                                        <div class="screen-line"></div>
+                                        <div class="screen-line mid"></div>
+                                        <div class="screen-line short"></div>
+                                    </div>
+                                    <div class="install-callout ios-callout"><i class="fa-solid fa-plus"></i> Add to Home Screen</div>
+                                </div>
+                            </div>
+                            <div class="touch-glow touch-ios"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="right-pane">
+                <div class="steps-grid" id="stepsI">
+                    <div class="card"><div class="num num-ios">1</div><div class="card-body"><h3>🧭 เปิด Safari</h3><p>iPhone และ iPad ต้องใช้ Safari เท่านั้น เบราว์เซอร์อื่นจะไม่ขึ้นปุ่มติดตั้ง</p></div></div>
+                    <div class="card"><div class="num num-ios">2</div><div class="card-body"><h3>🔗 เข้าสู่เว็บไซต์</h3><p>เปิดเว็บแอปนี้จากแถบ URL แล้วรอโหลดให้ครบ</p></div></div>
+                    <div class="card card-highlight ios-hl"><div class="num num-ios">3</div><div class="card-body"><h3>⬆️ กดปุ่ม Share</h3><p>บน iPhone อยู่ด้านล่างกลางจอ ส่วน iPad จะอยู่แถบด้านบน</p><div class="icon-badge icon-badge-blue"><i class="fa-solid fa-share-from-square"></i> ปุ่ม Share</div></div></div>
+                    <div class="card card-highlight ios-hl"><div class="num num-ios">4</div><div class="card-body"><h3>📲 เลือก “เพิ่มไปที่หน้าจอโฮม”</h3><p>เลื่อนลงในเมนูแล้วแตะ Add to Home Screen</p><div class="icon-badge icon-badge-blue"><i class="fa-solid fa-plus"></i> Add to Home Screen</div></div></div>
+                    <div class="card"><div class="num num-ios">5</div><div class="card-body"><h3>✅ กด “เพิ่ม”</h3><p>ยืนยันที่มุมบนขวาของหน้าจอเพื่อสร้างไอคอนแอป</p></div></div>
+                    <div class="card"><div class="num num-ios">6</div><div class="card-body"><h3>🎉 เปิดแอปจากหน้าจอโฮม</h3><p>หลังติดตั้งแล้วจะเปิดแบบเต็มจอเหมือนแอป native</p></div></div>
+                </div>
+                <div class="success-card" id="okI">
+                    <div class="check"><i class="fa-solid fa-circle-check"></i></div>
+                    <div><h3>เสร็จเรียบร้อย</h3><p>ปัดซ้ายต่อเพื่อเปิดตัวแอปจริงได้เลย</p></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="page p-app" id="pg2">
+        <iframe src="./index.html?app=true" id="appFrame" title="Dua Mustajab App" allow="fullscreen" loading="lazy"></iframe>
+    </section>
+</div>
+
+<script>
+(function () {
+    const wrap = document.getElementById('wrap');
+    const dots = document.querySelectorAll('.dot');
+    const hint = document.getElementById('hint');
+    const hintText = document.getElementById('hintText');
+    let cur = 0;
+    let animatedPages = new Set();
+
+    function pageWidth() { return window.innerWidth; }
+
+    function animatePage(pg) {
+        if (animatedPages.has(pg)) return;
+        animatedPages.add(pg);
+        const ids = ['stepsA', 'stepsI'];
+        const okIds = ['okA', 'okI'];
+        if (ids[pg]) {
+            document.querySelectorAll('#' + ids[pg] + ' .card').forEach((c, i) => {
+                setTimeout(() => c.classList.add('show'), 60 + i * 70);
+            });
+        }
+        if (okIds[pg]) {
+            setTimeout(() => {
+                const el = document.getElementById(okIds[pg]);
+                if (el) el.classList.add('show');
+            }, 520);
+        }
+    }
+
+    function onPage(pg) {
+        cur = pg;
+        dots.forEach((d, i) => d.classList.toggle('active', i === pg));
+        document.body.classList.add('page-switching');
+        clearTimeout(window.__pageSwitchTimer);
+        window.__pageSwitchTimer = setTimeout(() => document.body.classList.remove('page-switching'), 380);
+        if (pg === 2) {
+            hint.style.opacity = '0';
+        } else {
+            hint.style.opacity = '1';
+            hintText.textContent = pg === 0 ? 'ปัดซ้ายเพื่อดูขั้นตอน iOS' : 'ปัดซ้ายเพื่อเปิดแอป';
+        }
+        animatePage(pg);
+    }
+
+    wrap.addEventListener('scroll', () => {
+        const pg = Math.round(wrap.scrollLeft / pageWidth());
+        if (pg !== cur) onPage(pg);
+    }, { passive: true });
+
+    dots.forEach(d => {
+        d.addEventListener('click', () => {
+            const pg = parseInt(d.dataset.pg, 10);
+            wrap.scrollTo({ left: pg * pageWidth(), behavior: 'smooth' });
+        });
+    });
+
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+    if (isIOS) {
+        wrap.scrollLeft = pageWidth();
+        onPage(1);
+    } else {
+        onPage(0);
+    }
+
+    let iframeLoaded = false;
+    wrap.addEventListener('scroll', () => {
+        if (!iframeLoaded && wrap.scrollLeft >= pageWidth() * 1.4) {
+            iframeLoaded = true;
+            const frame = document.getElementById('appFrame');
+            if (frame && !frame.src.includes('?app=true')) {
+                frame.src = './index.html?app=true';
+            }
+        }
+    }, { passive: true });
+
+    window.addEventListener('resize', () => {
+        wrap.scrollLeft = cur * pageWidth();
+    });
+})();
+</script>
+</body>
+</html>
