@@ -1694,13 +1694,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Compute the scroll position that keeps the pinch midpoint visually
             // fixed after the canvas is re-rendered at the new scale.
-            // The content coordinate of the pinch centre = scroll + viewport-offset.
-            // At the new scale the content dimensions grow/shrink by scaleRatio, so:
-            //   newScroll = (scroll + viewportOffset) * scaleRatio - viewportOffset
-            pendingScrollLeft = Math.max(0,
-                (pdfViewerWrapper.scrollLeft + pinchCenterX) * scaleRatio - pinchCenterX);
-            pendingScrollTop  = Math.max(0,
-                (pdfViewerWrapper.scrollTop  + pinchCenterY) * scaleRatio - pinchCenterY);
+            //
+            // pinchOriginX/Y is the pinch midpoint in the container's LOCAL coordinate
+            // space (recorded at touchstart). It already accounts for any CSS centering
+            // margin applied when the content is narrower than the viewport, because:
+            //   pinchOriginX = midClientX - containerRect.left
+            //                = pinchCenterX + scrollLeft - containerMarginLeft
+            //
+            // After the canvas re-renders at newScale, the container grows by scaleRatio,
+            // so the pinch point moves to (pinchOriginX * scaleRatio) in the new container.
+            // To keep it at viewport position pinchCenterX, we need:
+            //   newScrollLeft = pinchOriginX * scaleRatio - pinchCenterX
+            //
+            // This is more accurate than (scrollLeft + pinchCenterX) * scaleRatio - pinchCenterX
+            // because the latter ignores any centering margin and over-shoots by
+            // containerMarginLeft * scaleRatio when content is centred.
+            pendingScrollLeft = Math.max(0, pinchOriginX * scaleRatio - pinchCenterX);
+            pendingScrollTop  = Math.max(0, pinchOriginY * scaleRatio - pinchCenterY);
 
             pageRendering = false;
             pageNumPending = null;
