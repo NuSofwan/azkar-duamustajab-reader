@@ -66,6 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let pageNumPending = null;
     let scale = 1.3; // Allow zooming
 
+    // Pending scroll correction applied at the end of the next render
+    // (used by pinch-to-zoom to re-anchor the view to the pinch point)
+    let pendingScrollLeft = null;
+    let pendingScrollTop  = null;
+
     // Freehand Highlight State
     let isHighlightMode = false;
     let isDrawing = false;
@@ -259,6 +264,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Helper: finish rendering and process pending
         const finishRender = () => {
             pageRendering = false;
+            // Apply pinch-zoom scroll correction now that the canvas has been
+            // resized to the new scale (scrollLeft/Top limits have updated).
+            if (pendingScrollLeft !== null) {
+                const tl = pendingScrollLeft;
+                const tt = pendingScrollTop;
+                pendingScrollLeft = null;
+                pendingScrollTop  = null;
+                requestAnimationFrame(() => {
+                    pdfViewerWrapper.scrollLeft = tl;
+                    pdfViewerWrapper.scrollTop  = tt;
+                });
+            }
             if (pageNumPending !== null) {
                 const pending = pageNumPending;
                 pageNumPending = null;
@@ -1597,6 +1614,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let pinchStartDist = 0;
     let pinchStartScale = scale;
     let pinchCurrentScale = scale;
+    // Pinch midpoint in the wrapper's visible area (for scroll correction)
+    let pinchCenterX = 0;
+    let pinchCenterY = 0;
+    // Pinch midpoint in pdfPageContainer's own coordinate space (for transform-origin)
+    let pinchOriginX = 0;
+    let pinchOriginY = 0;
 
     const getTouchDist = (touches) => {
         const dx = touches[0].clientX - touches[1].clientX;
@@ -1612,6 +1635,23 @@ document.addEventListener('DOMContentLoaded', () => {
         pinchStartDist = getTouchDist(e.touches);
         pinchStartScale = scale;
         pinchCurrentScale = scale;
+
+        // Record the midpoint of the two fingers:
+        //  • pinchCenterX/Y  — position within the wrapper's visible viewport
+        //                       (used to compute corrected scrollLeft/Top after render)
+        //  • pinchOriginX/Y  — position within pdfPageContainer's own coordinate space
+        //                       (used as CSS transform-origin for the live preview)
+        // Both are calculated before any CSS transform is applied, so the bounding
+        // rects are accurate.
+        const midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const wrapperRect    = pdfViewerWrapper.getBoundingClientRect();
+        const containerRect  = pdfPageContainer.getBoundingClientRect();
+        pinchCenterX = midClientX - wrapperRect.left;
+        pinchCenterY = midClientY - wrapperRect.top;
+        pinchOriginX = midClientX - containerRect.left;
+        pinchOriginY = midClientY - containerRect.top;
+
         e.preventDefault(); // prevent browser zoom UI
     }, { passive: false });
 
@@ -1625,10 +1665,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const ratio = dist / pinchStartDist;
         pinchCurrentScale = Math.min(5.0, Math.max(0.5, pinchStartScale * ratio));
 
-        // Immediate visual feedback via CSS transform (no canvas re-render yet)
+        // Live preview via CSS transform anchored to the exact pinch point,
+        // so the content under the fingers stays visually fixed while zooming.
         const visualRatio = pinchCurrentScale / scale;
         pdfPageContainer.style.transition = 'none';
-        pdfPageContainer.style.transformOrigin = 'center center';
+        pdfPageContainer.style.transformOrigin = `${pinchOriginX}px ${pinchOriginY}px`;
         pdfPageContainer.style.transform = `scale(${visualRatio})`;
     }, { passive: false });
 
@@ -1648,7 +1689,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const snapped = Math.round(pinchCurrentScale * 5) / 5;
         const finalScale = Math.min(5.0, Math.max(0.5, snapped));
         if (Math.abs(finalScale - scale) >= 0.1) {
+            const scaleRatio = finalScale / scale;
             scale = finalScale;
+
+            // Compute the scroll position that keeps the pinch midpoint visually
+            // fixed after the canvas is re-rendered at the new scale.
+            // The content coordinate of the pinch centre = scroll + viewport-offset.
+            // At the new scale the content dimensions grow/shrink by scaleRatio, so:
+            //   newScroll = (scroll + viewportOffset) * scaleRatio - viewportOffset
+            pendingScrollLeft = Math.max(0,
+                (pdfViewerWrapper.scrollLeft + pinchCenterX) * scaleRatio - pinchCenterX);
+            pendingScrollTop  = Math.max(0,
+                (pdfViewerWrapper.scrollTop  + pinchCenterY) * scaleRatio - pinchCenterY);
+
             pageRendering = false;
             pageNumPending = null;
             renderPage(pageNum);
