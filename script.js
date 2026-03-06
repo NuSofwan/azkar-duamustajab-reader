@@ -1800,8 +1800,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const newContainerLeft = wrapperPadL + centerOffsetX;
             const newContainerTop = wrapperPadT + centerOffsetY;
 
-            pendingScrollLeft = Math.max(0, newContainerLeft + pinchOriginX * scaleRatio - pinchLatestCenterX);
-            pendingScrollTop = Math.max(0, newContainerTop + pinchOriginY * scaleRatio - pinchLatestCenterY);
+            // Re-anchor using the pinch midpoint in scroll-space captured at gesture start.
+            // This avoids horizontal drift when the page is flex-centered inside the wrapper.
+            pendingScrollLeft = Math.max(0, pinchScrollX * scaleRatio - pinchLatestCenterX);
+            pendingScrollTop = Math.max(0, pinchScrollY * scaleRatio - pinchLatestCenterY);
 
             pageRendering = false;
             pageNumPending = null;
