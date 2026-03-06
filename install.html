@@ -534,8 +534,10 @@
 
     <!-- ── PAGE 3 · APP ──────────────────────────────── -->
     <section class="page p-app" id="pg2">
+        <!-- ?app=true tells index.html to skip the install-guide redirect
+             so the iframe loads the app directly instead of looping back here. -->
         <iframe
-            src="./index.html"
+            src="./index.html?app=true"
             id="appFrame"
             title="Dua Mustajab App"
             allow="fullscreen"

@@ -4,6 +4,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Install-guide redirect:
+         When opened in a regular browser (not installed PWA) and without the
+         ?app=true flag (which the install guide's iframe uses), send the visitor
+         to the install guide so they see how to add the app to their home screen.
+         The PWA itself always launches with display-mode:standalone, so it is
+         never redirected. -->
+    <script>
+        (function () {
+            var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                            || window.navigator.standalone === true;
+            var hasAppFlag  = window.location.search.indexOf('app=true') !== -1;
+            if (!isStandalone && !hasAppFlag) {
+                window.location.replace('./install.html');
+            }
+        })();
+    </script>
     <title>Dua Mustajab</title>
     <!-- Phase 6: PWA Manifest and Theme Color -->
     <link rel="manifest" href="manifest.json">
