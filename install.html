@@ -6,6 +6,12 @@
     <meta name="theme-color" content="#10b981">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
+    <!-- Link same PWA manifest so Chrome recognises this page as installable.
+         start_url in manifest.json still points to index.html, so the installed
+         PWA always launches into the app — never the install guide. -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.png" type="image/png">
+    <link rel="apple-touch-icon" href="icon.png">
     <title>ดาวน์โหลดแอป – Dua Mustajab</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -417,18 +423,21 @@
             <div class="card card-highlight">
                 <div class="num num-android">4</div>
                 <div class="card-body">
-                    <h3>📲 เลือก "เพิ่มในหน้าจอหลัก"</h3>
-                    <p>หรืออาจแสดงเป็น "ติดตั้งแอป" — เลือกข้อใดข้อหนึ่ง</p>
+                    <h3>📲 เลือก "เพิ่มลงในหน้าจอหลัก"</h3>
+                    <p>เลื่อนดูในเมนูแล้วกดที่รายการนี้ — จะมีกล่องยืนยันปรากฏขึ้น</p>
                     <div class="icon-badge icon-badge-green">
-                        <i class="fa-solid fa-plus"></i> เพิ่มในหน้าจอหลัก
+                        <i class="fa-solid fa-plus"></i> เพิ่มลงในหน้าจอหลัก
                     </div>
                 </div>
             </div>
-            <div class="card">
+            <div class="card card-highlight">
                 <div class="num num-android">5</div>
                 <div class="card-body">
-                    <h3>✅ กด "ติดตั้ง" เพื่อยืนยัน</h3>
-                    <p>กดปุ่ม "ติดตั้ง" หรือ "เพิ่ม" ในกล่องป๊อปอัปที่ปรากฏ</p>
+                    <h3>✅ กด "เพิ่ม" ในกล่องยืนยัน</h3>
+                    <p>กล่องป๊อปอัปจะแสดงชื่อแอปและไอคอน — กด "เพิ่ม" เพื่อติดตั้ง</p>
+                    <div class="icon-badge icon-badge-green">
+                        <i class="fa-solid fa-check"></i> เพิ่ม
+                    </div>
                 </div>
             </div>
             <div class="card">
