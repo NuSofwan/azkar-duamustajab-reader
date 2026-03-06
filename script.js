@@ -1736,10 +1736,19 @@ document.addEventListener('DOMContentLoaded', () => {
             //   newScrollLeft = pinchOriginX * scaleRatio - pinchCenterX
             //
             // This is more accurate than (scrollLeft + pinchCenterX) * scaleRatio - pinchCenterX
-            // because the latter ignores any centering margin and over-shoots by
-            // containerMarginLeft * scaleRatio when content is centred.
-            pendingScrollLeft = Math.max(0, pinchOriginX * scaleRatio - pinchCenterX);
-            pendingScrollTop  = Math.max(0, pinchOriginY * scaleRatio - pinchCenterY);
+            // because pinchOriginX already encodes the container-local coordinate,
+            // eliminating the centering margin.
+            //
+            // IMPORTANT: pdfViewerWrapper has CSS padding (1 rem on all sides).
+            // That padding is part of the scrollable area, so after re-render the
+            // container's left/top edge is at `paddingLeft` / `paddingTop` inside
+            // the scroll area, not at 0.  We must add the padding to the target
+            // scroll position; without it the view always lands `padding` px short.
+            const wrapperCS   = window.getComputedStyle(pdfViewerWrapper);
+            const wrapperPadL = parseFloat(wrapperCS.paddingLeft)  || 0;
+            const wrapperPadT = parseFloat(wrapperCS.paddingTop)   || 0;
+            pendingScrollLeft = Math.max(0, wrapperPadL + pinchOriginX * scaleRatio - pinchCenterX);
+            pendingScrollTop  = Math.max(0, wrapperPadT + pinchOriginY * scaleRatio - pinchCenterY);
 
             pageRendering = false;
             pageNumPending = null;
