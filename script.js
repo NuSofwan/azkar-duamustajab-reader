@@ -1766,21 +1766,42 @@ document.addEventListener('DOMContentLoaded', () => {
             // Compute the scroll position that keeps the pinch point visually fixed
             // after the canvas is re-rendered at the new scale AND accounts for panning.
             //
-            // At the new scale the container will be scaleRatio times larger, so
-            // pinchOriginX (container-local) maps to (pinchOriginX * scaleRatio) in
-            // the new scroll space.  We want that point to appear at the final finger
-            // midpoint (pinchLatestCenterX) in the viewport, so:
+            // The wrapper uses display:flex + justify-content:center + padding:1rem.
+            // The container's left edge in scroll-space is therefore:
+            //   containerLeftInScroll = paddingLeft + flexCenteringMargin
+            // where flexCenteringMargin = max(0, (innerWidth - cssW_new) / 2)
+            //   and innerWidth = wrapperScrollWidth - 2 * paddingLeft  (content area)
             //
-            //   newScrollLeft = padding + pinchOriginX * scaleRatio - pinchLatestCenterX
-            //
-            // Using pinchLatestCenterX (not the original pinchCenterX) makes the
-            // scroll land at wherever the fingers actually ended up, which includes
-            // any panning the user did during the gesture.
+            // After the canvas re-renders at finalScale, cssW_new = cssW_old * scaleRatio.
+            // To keep pinchOriginX (container-local) at viewport position pinchLatestCenterX:
+            //   newScrollLeft = containerLeftInScroll_new + pinchOriginX * scaleRatio - pinchLatestCenterX
             const wrapperCS = window.getComputedStyle(pdfViewerWrapper);
             const wrapperPadL = parseFloat(wrapperCS.paddingLeft) || 0;
             const wrapperPadT = parseFloat(wrapperCS.paddingTop) || 0;
-            pendingScrollLeft = Math.max(0, wrapperPadL + pinchOriginX * scaleRatio - pinchLatestCenterX);
-            pendingScrollTop = Math.max(0, wrapperPadT + pinchOriginY * scaleRatio - pinchLatestCenterY);
+
+            // Current canvas CSS size
+            const cssWCurrent = parseFloat(pdfCanvas.style.width) || pdfCanvas.offsetWidth;
+            const cssHCurrent = parseFloat(pdfCanvas.style.height) || pdfCanvas.offsetHeight;
+
+            // Expected canvas CSS size at the new scale
+            const cssWNew = cssWCurrent * scaleRatio;
+            const cssHNew = cssHCurrent * scaleRatio;
+
+            // Width/height of the wrapper's content area (inside padding)
+            const wrapperInnerW = pdfViewerWrapper.clientWidth - wrapperPadL * 2;
+            const wrapperInnerH = pdfViewerWrapper.clientHeight - wrapperPadT * 2;
+
+            // Flex centering offsets at the new scale
+            // (0 when canvas overflows the content area; positive when canvas is narrower)
+            const centerOffsetX = Math.max(0, (wrapperInnerW - cssWNew) / 2);
+            const centerOffsetY = Math.max(0, (wrapperInnerH - cssHNew) / 2);
+
+            // Container left/top edge in scroll-space at the new scale
+            const newContainerLeft = wrapperPadL + centerOffsetX;
+            const newContainerTop = wrapperPadT + centerOffsetY;
+
+            pendingScrollLeft = Math.max(0, newContainerLeft + pinchOriginX * scaleRatio - pinchLatestCenterX);
+            pendingScrollTop = Math.max(0, newContainerTop + pinchOriginY * scaleRatio - pinchLatestCenterY);
 
             pageRendering = false;
             pageNumPending = null;
