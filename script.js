@@ -70,22 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // (used by pinch-to-zoom to re-anchor the view to the pinch point)
     let pendingScrollLeft = null;
     let pendingScrollTop = null;
-    // Precise pinch anchor used after re-render. We measure the container's
-    // actual post-layout position instead of estimating from flex centering,
-    // which avoids horizontal drift on mobile pinch-zoom.
-    let pendingAnchorLocalX = null;
-    let pendingAnchorLocalY = null;
-    let pendingAnchorViewportX = null;
-    let pendingAnchorViewportY = null;
-
-
-    // Persist and restore the last reading position per book
-    let restoreReaderStateAfterRender = null;
-    let saveStateTimer = null;
-    let pinchPreviewRaf = 0;
-    let pinchPreviewScaleRatio = 1;
-    let pinchPreviewPanX = 0;
-    let pinchPreviewPanY = 0;
 
     // Freehand Highlight State
     let isHighlightMode = false;
@@ -183,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 pdfPageContainer.style.transform = '';
                 pdfPageContainer.style.transformOrigin = '';
                 pdfPageContainer.style.transition = '';
+            if (pinchPreviewRaf) { cancelAnimationFrame(pinchPreviewRaf); pinchPreviewRaf = 0; }
 
                 pdfCanvas.width = img.width;
                 pdfCanvas.height = img.height;
@@ -222,81 +207,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper for Local Storage Keys
     const getStorageKey = (type) => `${type}_${currentBook}`;
-    const getReaderStateKey = (bookName = currentBook) => `reader_state_${bookName}`;
-
-    const saveReaderState = (bookName = currentBook) => {
-        try {
-            const payload = {
-                pageNum,
-                scale,
-                scrollLeft: Math.round(pdfViewerWrapper.scrollLeft || 0),
-                scrollTop: Math.round(pdfViewerWrapper.scrollTop || 0),
-                ts: Date.now(),
-            };
-            localStorage.setItem(getReaderStateKey(bookName), JSON.stringify(payload));
-        } catch (e) { }
-    };
-
-    const saveReaderStateSoon = (bookName = currentBook) => {
-        clearTimeout(saveStateTimer);
-        saveStateTimer = setTimeout(() => saveReaderState(bookName), 120);
-    };
-
-    const loadReaderState = (bookName = currentBook) => {
-        try {
-            return JSON.parse(localStorage.getItem(getReaderStateKey(bookName)) || 'null');
-        } catch (e) {
-            return null;
-        }
-    };
-
-    const queueNearbyPrerender = (bookName, pdfDocument, centerPage) => {
-        if (!pdfDocument) return;
-        const deltas = isMobile ? [1, 2] : [1, 2, 3, 4, 5];
-        const wanted = [];
-        deltas.forEach(d => {
-            wanted.push(centerPage + d);
-            wanted.push(centerPage - d);
-        });
-        const seen = new Set();
-        wanted.forEach(pNum => {
-            if (pNum < 1 || pNum > pdfDocument.numPages || seen.has(pNum)) return;
-            seen.add(pNum);
-            bgRenderQueue.push({ bookName, pdfDocument, pageNum: pNum, priority: pNum === centerPage + 1 || pNum === centerPage - 1 });
-        });
-        bgRenderNext();
-    };
-
-    const zoomToScaleAtViewportPoint = (targetScale, viewportX, viewportY, withAnimation = true) => {
-        if (!pdfDoc) return;
-        const finalScale = Math.min(5.0, Math.max(0.5, Math.round(targetScale * 5) / 5));
-        if (Math.abs(finalScale - scale) < 0.01) return;
-
-        const wrapperRect = pdfViewerWrapper.getBoundingClientRect();
-        const containerRect = pdfPageContainer.getBoundingClientRect();
-        const viewportLocalX = viewportX - wrapperRect.left;
-        const viewportLocalY = viewportY - wrapperRect.top;
-        const containerScrollLeft = containerRect.left - wrapperRect.left + pdfViewerWrapper.scrollLeft;
-        const containerScrollTop = containerRect.top - wrapperRect.top + pdfViewerWrapper.scrollTop;
-        const localX = viewportLocalX + pdfViewerWrapper.scrollLeft - containerScrollLeft;
-        const localY = viewportLocalY + pdfViewerWrapper.scrollTop - containerScrollTop;
-        const scaleRatio = finalScale / scale;
-
-        pendingAnchorLocalX = localX * scaleRatio;
-        pendingAnchorLocalY = localY * scaleRatio;
-        pendingAnchorViewportX = viewportLocalX;
-        pendingAnchorViewportY = viewportLocalY;
-        pendingScrollLeft = Math.max(0, (viewportLocalX + pdfViewerWrapper.scrollLeft) * scaleRatio - viewportLocalX);
-        pendingScrollTop = Math.max(0, (viewportLocalY + pdfViewerWrapper.scrollTop) * scaleRatio - viewportLocalY);
-
-        scale = finalScale;
-        if (withAnimation) {
-            pdfPageContainer.style.transition = 'transform 140ms cubic-bezier(0.22, 1, 0.36, 1)';
-        }
-        pageRendering = false;
-        pageNumPending = null;
-        renderPage(pageNum);
-    };
 
     // --- Basic UI ---
     navToggle.addEventListener('click', () => { mobileMenu.classList.toggle('open'); });
@@ -384,25 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // dimensions in the same synchronous block; setting scrollLeft/Top
             // here forces the browser to resolve the layout immediately, so the
             // scroll limit is correct and the user sees only the final state.
-            if (pendingAnchorLocalX !== null) {
-                const wrapperRect = pdfViewerWrapper.getBoundingClientRect();
-                const containerRect = pdfPageContainer.getBoundingClientRect();
-                const containerScrollLeft = containerRect.left - wrapperRect.left + pdfViewerWrapper.scrollLeft;
-                const containerScrollTop = containerRect.top - wrapperRect.top + pdfViewerWrapper.scrollTop;
-
-                const tl = Math.max(0, containerScrollLeft + pendingAnchorLocalX - pendingAnchorViewportX);
-                const tt = Math.max(0, containerScrollTop + pendingAnchorLocalY - pendingAnchorViewportY);
-
-                pendingAnchorLocalX = null;
-                pendingAnchorLocalY = null;
-                pendingAnchorViewportX = null;
-                pendingAnchorViewportY = null;
-                pendingScrollLeft = null;
-                pendingScrollTop = null;
-
-                pdfViewerWrapper.scrollLeft = tl;
-                pdfViewerWrapper.scrollTop = tt;
-            } else if (pendingScrollLeft !== null) {
+            if (pendingScrollLeft !== null) {
                 const tl = pendingScrollLeft;
                 const tt = pendingScrollTop;
                 pendingScrollLeft = null;
@@ -410,18 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 pdfViewerWrapper.scrollLeft = tl;
                 pdfViewerWrapper.scrollTop = tt;
             }
-            if (restoreReaderStateAfterRender) {
-                const state = restoreReaderStateAfterRender;
-                restoreReaderStateAfterRender = null;
-                const maxLeft = Math.max(0, pdfViewerWrapper.scrollWidth - pdfViewerWrapper.clientWidth);
-                const maxTop = Math.max(0, pdfViewerWrapper.scrollHeight - pdfViewerWrapper.clientHeight);
-                pdfViewerWrapper.scrollLeft = Math.max(0, Math.min(maxLeft, state.scrollLeft || 0));
-                pdfViewerWrapper.scrollTop = Math.max(0, Math.min(maxTop, state.scrollTop || 0));
-            }
-
-            saveReaderStateSoon();
-            if (pdfDoc) queueNearbyPrerender(currentBook, pdfDoc, pageNum);
-
             if (pageNumPending !== null) {
                 const pending = pageNumPending;
                 pageNumPending = null;
@@ -600,13 +480,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     zoomInBtn.addEventListener('click', () => {
-        const rect = pdfViewerWrapper.getBoundingClientRect();
-        zoomToScaleAtViewportPoint(scale + 0.2, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        scale = Math.round((scale + 0.2) * 10) / 10;
+        // Force immediate render — the version counter discards stale results
+        pageRendering = false;
+        pageNumPending = null;
+        renderPage(pageNum);
     });
     zoomOutBtn.addEventListener('click', () => {
         if (scale > 0.5) {
-            const rect = pdfViewerWrapper.getBoundingClientRect();
-            zoomToScaleAtViewportPoint(scale - 0.2, rect.left + rect.width / 2, rect.top + rect.height / 2);
+            scale = Math.round((scale - 0.2) * 10) / 10;
+            pageRendering = false;
+            pageNumPending = null;
+            renderPage(pageNum);
         }
     });
 
@@ -820,21 +705,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageNumSelect.appendChild(opt);
             }
 
-            const restored = loadReaderState(bookName);
-            pageNum = Math.min(pdfDoc.numPages, Math.max(1, restored?.pageNum || 1));
-            scale = Math.min(5.0, Math.max(0.5, restored?.scale || 1.3));
-            restoreReaderStateAfterRender = restored ? { scrollLeft: restored.scrollLeft || 0, scrollTop: restored.scrollTop || 0 } : null;
+            pageNum = 1;
             renderPage(pageNum);
             loadBookmarks();
             loadTOC(pdfDoc_);
-            queueNearbyPrerender(bookName, pdfDoc_, pageNum);
-            if (!isMobile) {
-                setTimeout(() => queueNearbyPrerender(bookName, pdfDoc_, Math.min(pdfDoc_.numPages, pageNum + 3)), 250);
+            if (isMobile) {
+                // On mobile (especially iOS): only pre-render 2 pages ahead.
+                // Each canvas page at 3x DPR = ~30MB RAM. Rendering all pages
+                // would easily exceed iOS's ~150MB tab limit and cause a crash.
+                prerenderPages(bookName, pdfDoc_, 2, 3, true);
+            } else {
+                // Desktop: pre-render generously for instant navigation
+                prerenderPages(bookName, pdfDoc_, 2, 5, true);
+                prerenderPages(bookName, pdfDoc_, 6, 15);
+                setTimeout(() => prerenderPages(bookName, pdfDoc_, 16, pdfDoc_.numPages), 500);
             }
         } else {
             // Pre-render first 5 pages of non-active book with priority
             if (!isMobile) {
-                queueNearbyPrerender(bookName, pdfDoc_, 1);
+                prerenderPages(bookName, pdfDoc_, 1, 5, true);
+                prerenderPages(bookName, pdfDoc_, 6, 10);
             }
         }
     };
@@ -952,7 +842,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const promise = loadingTask.promise.then(pdfDoc_ => {
             pdfCache[bookName] = pdfDoc_;
             if (!isMobile) {
-                queueNearbyPrerender(bookName, pdfDoc_, 1);
+                prerenderPages(bookName, pdfDoc_, 1, 5, true);
+                prerenderPages(bookName, pdfDoc_, 6, 10);
             }
             return pdfDoc_;
         }).catch(err => {
@@ -967,7 +858,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }).then(pdfDoc_ => {
                 pdfCache[bookName] = pdfDoc_;
                 if (!isMobile) {
-                    queueNearbyPrerender(bookName, pdfDoc_, 1);
+                    prerenderPages(bookName, pdfDoc_, 1, 5, true);
+                    prerenderPages(bookName, pdfDoc_, 6, 10);
                 }
                 return pdfDoc_;
             });
@@ -992,14 +884,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageNumSelect.appendChild(opt);
             }
 
-            const restored = loadReaderState(bookName);
-            pageNum = Math.min(pdfDoc.numPages, Math.max(1, restored?.pageNum || 1));
-            scale = Math.min(5.0, Math.max(0.5, restored?.scale || 1.3));
-            restoreReaderStateAfterRender = restored ? { scrollLeft: restored.scrollLeft || 0, scrollTop: restored.scrollTop || 0 } : null;
+            pageNum = 1;
             renderPage(pageNum);
             loadBookmarks();
             loadTOC(pdfDoc);
-            queueNearbyPrerender(bookName, pdfDoc, pageNum);
             return;
         }
 
@@ -1016,7 +904,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const selectBook = (bookName) => {
         if (currentBook === bookName && pdfDoc) return; // Already viewing
-        if (pdfDoc) saveReaderState(currentBook);
         currentBook = bookName;
 
         [...bookBtnsDesktop, ...bookBtnsMobile].forEach(btn => {
@@ -1057,15 +944,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loadPDF(bookName);
     };
 
-    // Lazy startup: load only the active book immediately.
-    // Preload the second book later on desktop so initial load stays fast on mobile.
-    if (!isMobile) {
-        setTimeout(() => {
-            ['th_athkar_assabah_walmasaa.pdf', 'dua_mustajab_th.pdf']
-                .filter(book => book !== currentBook)
-                .forEach(book => preloadPDF(book));
-        }, 1500);
-    }
+    // Eager parallel preload: start downloading ALL books immediately on startup
+    const allBooks = ['th_athkar_assabah_walmasaa.pdf', 'dua_mustajab_th.pdf'];
+    allBooks.forEach(book => preloadPDF(book));
 
     [...bookBtnsDesktop, ...bookBtnsMobile].forEach(btn => {
         btn.addEventListener('click', (e) => selectBook(e.target.getAttribute('data-book')));
@@ -1780,6 +1661,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Used to translate the live preview so panning works while pinching.
     let pinchLatestCenterX = 0;
     let pinchLatestCenterY = 0;
+    let lastTapTime = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
 
     const getTouchDist = (touches) => {
         const dx = touches[0].clientX - touches[1].clientX;
@@ -1830,6 +1714,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Non-passive: call preventDefault() only for the 2-finger case so
     // single-finger scroll continues to work natively.
+    const applyPinchPreview = () => {
+        pinchPreviewRaf = 0;
+        pdfPageContainer.style.transition = 'none';
+        pdfPageContainer.style.transformOrigin = `${pinchOriginX}px ${pinchOriginY}px`;
+        pdfPageContainer.style.transform = `translate(${pinchPreviewPanX}px, ${pinchPreviewPanY}px) scale(${pinchPreviewScaleRatio})`;
+    };
+
     pdfViewerWrapper.addEventListener('touchmove', (e) => {
         if (!isPinching || e.touches.length !== 2) return;
         e.preventDefault();
@@ -1843,30 +1734,11 @@ document.addEventListener('DOMContentLoaded', () => {
         pinchLatestCenterX = mid.x - wrapperRect.left;
         pinchLatestCenterY = mid.y - wrapperRect.top;
 
-        // Live preview via CSS transform:
-        //   1. Scale around the original pinch point (transform-origin)
-        //   2. Add a translate to pan with the finger movement
-        //
-        // When fingers move, the midpoint shifts by (latestCenter - initialCenter).
-        // We apply that shift as a translateX/Y AFTER the scale so it moves in
-        // screen pixels, not scaled pixels.
-        const visualRatio = pinchCurrentScale / scale;
-        const panX = pinchLatestCenterX - pinchCenterX;
-        const panY = pinchLatestCenterY - pinchCenterY;
+        pinchPreviewScaleRatio = pinchCurrentScale / scale;
+        pinchPreviewPanX = pinchLatestCenterX - pinchCenterX;
+        pinchPreviewPanY = pinchLatestCenterY - pinchCenterY;
 
-        pinchPreviewScaleRatio = visualRatio;
-        pinchPreviewPanX = panX;
-        pinchPreviewPanY = panY;
-        if (!pinchPreviewRaf) {
-            pinchPreviewRaf = requestAnimationFrame(() => {
-                pinchPreviewRaf = 0;
-                pdfPageContainer.style.willChange = 'transform';
-                pdfPageContainer.style.transition = 'none';
-                pdfPageContainer.style.transformOrigin = `${pinchOriginX}px ${pinchOriginY}px`;
-                // translate(...) scale(...) keeps the finger anchor steadier on iOS Safari
-                pdfPageContainer.style.transform = `translate(${pinchPreviewPanX}px, ${pinchPreviewPanY}px) scale(${pinchPreviewScaleRatio})`;
-            });
-        }
+        if (!pinchPreviewRaf) pinchPreviewRaf = requestAnimationFrame(applyPinchPreview);
     }, { passive: false });
 
     // On pinch end: remove the visual transform and re-render at the new scale
@@ -1885,34 +1757,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // (and drawCachedImage), so the browser only ever paints the correct
         // final state.
 
-        // Snap to nearest 0.2 step for a crisp render
-        const snapped = Math.round(pinchCurrentScale * 5) / 5;
+        // Use a fine-grained step for crispness without the large visual jump of 0.2.
+        const snapped = Math.round(pinchCurrentScale * 20) / 20;
         const finalScale = Math.min(5.0, Math.max(0.5, snapped));
-        if (pinchPreviewRaf) {
-            cancelAnimationFrame(pinchPreviewRaf);
-            pinchPreviewRaf = 0;
-        }
-        pdfPageContainer.style.willChange = 'auto';
-
-        if (Math.abs(finalScale - scale) >= 0.1) {
+        if (Math.abs(finalScale - scale) >= 0.01) {
             const scaleRatio = finalScale / scale;
-            scale = finalScale;
 
-            // Re-anchor using the content-local point under the original pinch center.
-            // We do NOT estimate flex centering or wrapper padding here; instead, after the
-            // new render completes, finishRender() measures the container's ACTUAL position
-            // in scroll-space and computes the exact scrollLeft/scrollTop needed. This avoids
-            // the persistent rightward drift seen on mobile browsers.
+            // Smart anchor: re-anchor to the exact touched content point after re-render.
+            // This keeps the point under the fingers fixed, including left-edge pinches.
             pendingAnchorLocalX = pinchOriginX * scaleRatio;
             pendingAnchorLocalY = pinchOriginY * scaleRatio;
             pendingAnchorViewportX = pinchLatestCenterX;
             pendingAnchorViewportY = pinchLatestCenterY;
+            pendingScrollLeft = null;
+            pendingScrollTop = null;
 
-            // Keep fallback values for compatibility, but the precise anchor path above
-            // should be the one that runs.
-            pendingScrollLeft = Math.max(0, pinchScrollX * scaleRatio - pinchLatestCenterX);
-            pendingScrollTop = Math.max(0, pinchScrollY * scaleRatio - pinchLatestCenterY);
-
+            scale = finalScale;
             pageRendering = false;
             pageNumPending = null;
             renderPage(pageNum);
@@ -1927,27 +1787,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
 
 
-
-    // Persist reading position while the user scrolls.
-    pdfViewerWrapper.addEventListener('scroll', () => {
-        if (!pdfDoc || isPinching) return;
-        saveReaderStateSoon();
-    }, { passive: true });
-
-    // Double-tap to zoom at the tapped point (similar to reader apps).
-    let lastTapTime = 0;
-    let lastTapX = 0;
-    let lastTapY = 0;
+    // Double-tap zoom at the tapped point (like native reader apps)
     pdfViewerWrapper.addEventListener('touchend', (e) => {
         if (!pdfDoc || isPinching || wasPinching || e.changedTouches.length !== 1) return;
         const touch = e.changedTouches[0];
         const now = Date.now();
         const dt = now - lastTapTime;
         const move = Math.hypot(touch.clientX - lastTapX, touch.clientY - lastTapY);
-        if (dt > 0 && dt < 280 && move < 28) {
-            const targetScale = scale < 2 ? 2.4 : 1.0;
+        if (dt > 0 && dt < 280 && move < 24) {
+            const targetScale = scale < 2 ? Math.min(2.4, 5.0) : 1.0;
             zoomToScaleAtViewportPoint(targetScale, touch.clientX, touch.clientY);
             lastTapTime = 0;
+            lastTapX = 0;
+            lastTapY = 0;
             return;
         }
         lastTapTime = now;
@@ -1955,12 +1807,13 @@ document.addEventListener('DOMContentLoaded', () => {
         lastTapY = touch.clientY;
     }, { passive: true });
 
+    pdfViewerWrapper.addEventListener('scroll', () => {
+        if (!pdfDoc || isPinching) return;
+        saveReaderStateSoon();
+    }, { passive: true });
+
     // Auto-load default
     selectBook(currentBook);
-});
-
-window.addEventListener('beforeunload', () => {
-    try { localStorage.setItem('last_session_marker', String(Date.now())); } catch (e) { }
 });
 
 // --- Phase 6: PWA Service Worker ---
