@@ -70,6 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // (used by pinch-to-zoom to re-anchor the view to the pinch point)
     let pendingScrollLeft = null;
     let pendingScrollTop = null;
+    // Precise pinch anchor used after re-render. We measure the container's
+    // actual post-layout position instead of estimating from flex centering,
+    // which avoids horizontal drift on mobile pinch-zoom.
+    let pendingAnchorLocalX = null;
+    let pendingAnchorLocalY = null;
+    let pendingAnchorViewportX = null;
+    let pendingAnchorViewportY = null;
 
     // Freehand Highlight State
     let isHighlightMode = false;
@@ -293,7 +300,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // dimensions in the same synchronous block; setting scrollLeft/Top
             // here forces the browser to resolve the layout immediately, so the
             // scroll limit is correct and the user sees only the final state.
-            if (pendingScrollLeft !== null) {
+            if (pendingAnchorLocalX !== null) {
+                const wrapperRect = pdfViewerWrapper.getBoundingClientRect();
+                const containerRect = pdfPageContainer.getBoundingClientRect();
+                const containerScrollLeft = containerRect.left - wrapperRect.left + pdfViewerWrapper.scrollLeft;
+                const containerScrollTop = containerRect.top - wrapperRect.top + pdfViewerWrapper.scrollTop;
+
+                const tl = Math.max(0, containerScrollLeft + pendingAnchorLocalX - pendingAnchorViewportX);
+                const tt = Math.max(0, containerScrollTop + pendingAnchorLocalY - pendingAnchorViewportY);
+
+                pendingAnchorLocalX = null;
+                pendingAnchorLocalY = null;
+                pendingAnchorViewportX = null;
+                pendingAnchorViewportY = null;
+                pendingScrollLeft = null;
+                pendingScrollTop = null;
+
+                pdfViewerWrapper.scrollLeft = tl;
+                pdfViewerWrapper.scrollTop = tt;
+            } else if (pendingScrollLeft !== null) {
                 const tl = pendingScrollLeft;
                 const tt = pendingScrollTop;
                 pendingScrollLeft = null;
@@ -1763,45 +1788,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const scaleRatio = finalScale / scale;
             scale = finalScale;
 
-            // Compute the scroll position that keeps the pinch point visually fixed
-            // after the canvas is re-rendered at the new scale AND accounts for panning.
-            //
-            // The wrapper uses display:flex + justify-content:center + padding:1rem.
-            // The container's left edge in scroll-space is therefore:
-            //   containerLeftInScroll = paddingLeft + flexCenteringMargin
-            // where flexCenteringMargin = max(0, (innerWidth - cssW_new) / 2)
-            //   and innerWidth = wrapperScrollWidth - 2 * paddingLeft  (content area)
-            //
-            // After the canvas re-renders at finalScale, cssW_new = cssW_old * scaleRatio.
-            // To keep pinchOriginX (container-local) at viewport position pinchLatestCenterX:
-            //   newScrollLeft = containerLeftInScroll_new + pinchOriginX * scaleRatio - pinchLatestCenterX
-            const wrapperCS = window.getComputedStyle(pdfViewerWrapper);
-            const wrapperPadL = parseFloat(wrapperCS.paddingLeft) || 0;
-            const wrapperPadT = parseFloat(wrapperCS.paddingTop) || 0;
+            // Re-anchor using the content-local point under the original pinch center.
+            // We do NOT estimate flex centering or wrapper padding here; instead, after the
+            // new render completes, finishRender() measures the container's ACTUAL position
+            // in scroll-space and computes the exact scrollLeft/scrollTop needed. This avoids
+            // the persistent rightward drift seen on mobile browsers.
+            pendingAnchorLocalX = pinchOriginX * scaleRatio;
+            pendingAnchorLocalY = pinchOriginY * scaleRatio;
+            pendingAnchorViewportX = pinchLatestCenterX;
+            pendingAnchorViewportY = pinchLatestCenterY;
 
-            // Current canvas CSS size
-            const cssWCurrent = parseFloat(pdfCanvas.style.width) || pdfCanvas.offsetWidth;
-            const cssHCurrent = parseFloat(pdfCanvas.style.height) || pdfCanvas.offsetHeight;
-
-            // Expected canvas CSS size at the new scale
-            const cssWNew = cssWCurrent * scaleRatio;
-            const cssHNew = cssHCurrent * scaleRatio;
-
-            // Width/height of the wrapper's content area (inside padding)
-            const wrapperInnerW = pdfViewerWrapper.clientWidth - wrapperPadL * 2;
-            const wrapperInnerH = pdfViewerWrapper.clientHeight - wrapperPadT * 2;
-
-            // Flex centering offsets at the new scale
-            // (0 when canvas overflows the content area; positive when canvas is narrower)
-            const centerOffsetX = Math.max(0, (wrapperInnerW - cssWNew) / 2);
-            const centerOffsetY = Math.max(0, (wrapperInnerH - cssHNew) / 2);
-
-            // Container left/top edge in scroll-space at the new scale
-            const newContainerLeft = wrapperPadL + centerOffsetX;
-            const newContainerTop = wrapperPadT + centerOffsetY;
-
-            // Re-anchor using the pinch midpoint in scroll-space captured at gesture start.
-            // This avoids horizontal drift when the page is flex-centered inside the wrapper.
+            // Keep fallback values for compatibility, but the precise anchor path above
+            // should be the one that runs.
             pendingScrollLeft = Math.max(0, pinchScrollX * scaleRatio - pinchLatestCenterX);
             pendingScrollTop = Math.max(0, pinchScrollY * scaleRatio - pinchLatestCenterY);
 
