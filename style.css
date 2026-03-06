@@ -1210,3 +1210,11 @@ input:checked+.slider:before {
         pointer-events: none;
     }
 }
+
+.pdf-viewer-wrapper{
+touch-action: pan-x pan-y;
+}
+
+#pdfCanvas{
+touch-action: none;
+}
