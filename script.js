@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Pending scroll correction applied at the end of the next render
     // (used by pinch-to-zoom to re-anchor the view to the pinch point)
     let pendingScrollLeft = null;
-    let pendingScrollTop  = null;
+    let pendingScrollTop = null;
 
     // Freehand Highlight State
     let isHighlightMode = false;
@@ -297,9 +297,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tl = pendingScrollLeft;
                 const tt = pendingScrollTop;
                 pendingScrollLeft = null;
-                pendingScrollTop  = null;
+                pendingScrollTop = null;
                 pdfViewerWrapper.scrollLeft = tl;
-                pdfViewerWrapper.scrollTop  = tt;
+                pdfViewerWrapper.scrollTop = tt;
             }
             if (pageNumPending !== null) {
                 const pending = pageNumPending;
@@ -1639,18 +1639,38 @@ document.addEventListener('DOMContentLoaded', () => {
     let pinchStartDist = 0;
     let pinchStartScale = scale;
     let pinchCurrentScale = scale;
-    // Pinch midpoint in the wrapper's visible area (for scroll correction)
+
+    // Pinch midpoint in the wrapper's viewport at gesture start (client-relative)
     let pinchCenterX = 0;
     let pinchCenterY = 0;
+
+    // Pinch midpoint in SCROLL space at gesture start:
+    //   = midpoint relative to the full scrollable content (not just the visible area).
+    //   pinchScrollX = pinchCenterX + scrollLeft  (wrapper-viewport x → scroll x)
+    //   pinchScrollY = pinchCenterY + scrollTop
+    let pinchScrollX = 0;
+    let pinchScrollY = 0;
+
     // Pinch midpoint in pdfPageContainer's own coordinate space (for transform-origin)
+    //   pinchOriginX = midClientX - containerRect.left  (at gesture start, no transform active)
     let pinchOriginX = 0;
     let pinchOriginY = 0;
+
+    // Latest midpoint of the two fingers (viewport-relative), updated each touchmove.
+    // Used to translate the live preview so panning works while pinching.
+    let pinchLatestCenterX = 0;
+    let pinchLatestCenterY = 0;
 
     const getTouchDist = (touches) => {
         const dx = touches[0].clientX - touches[1].clientX;
         const dy = touches[0].clientY - touches[1].clientY;
         return Math.hypot(dx, dy);
     };
+
+    const getTouchMid = (touches) => ({
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2,
+    });
 
     // Non-passive: must call preventDefault() to block browser's own pinch-zoom
     pdfViewerWrapper.addEventListener('touchstart', (e) => {
@@ -1661,21 +1681,29 @@ document.addEventListener('DOMContentLoaded', () => {
         pinchStartScale = scale;
         pinchCurrentScale = scale;
 
-        // Record the midpoint of the two fingers:
-        //  • pinchCenterX/Y  — position within the wrapper's visible viewport
-        //                       (used to compute corrected scrollLeft/Top after render)
-        //  • pinchOriginX/Y  — position within pdfPageContainer's own coordinate space
-        //                       (used as CSS transform-origin for the live preview)
-        // Both are calculated before any CSS transform is applied, so the bounding
-        // rects are accurate.
-        const midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const wrapperRect    = pdfViewerWrapper.getBoundingClientRect();
-        const containerRect  = pdfPageContainer.getBoundingClientRect();
-        pinchCenterX = midClientX - wrapperRect.left;
-        pinchCenterY = midClientY - wrapperRect.top;
-        pinchOriginX = midClientX - containerRect.left;
-        pinchOriginY = midClientY - containerRect.top;
+        const mid = getTouchMid(e.touches);
+        const wrapperRect = pdfViewerWrapper.getBoundingClientRect();
+        const containerRect = pdfPageContainer.getBoundingClientRect();
+
+        // Midpoint in the wrapper's visible viewport
+        pinchCenterX = mid.x - wrapperRect.left;
+        pinchCenterY = mid.y - wrapperRect.top;
+
+        // Same point in full scroll-space (accounts for current scroll position)
+        pinchScrollX = pinchCenterX + pdfViewerWrapper.scrollLeft;
+        pinchScrollY = pinchCenterY + pdfViewerWrapper.scrollTop;
+
+        // Midpoint in the container's own (untransformed) coordinate space
+        //   = position in the scroll area - where the container starts in that area
+        // Because scrollLeft/scrollTop shift the container relative to the viewport,
+        // we must use scroll-space to get the container-local coordinate correctly.
+        const containerScrollLeft = containerRect.left - wrapperRect.left + pdfViewerWrapper.scrollLeft;
+        const containerScrollTop = containerRect.top - wrapperRect.top + pdfViewerWrapper.scrollTop;
+        pinchOriginX = pinchScrollX - containerScrollLeft;
+        pinchOriginY = pinchScrollY - containerScrollTop;
+
+        pinchLatestCenterX = pinchCenterX;
+        pinchLatestCenterY = pinchCenterY;
 
         e.preventDefault(); // prevent browser zoom UI
     }, { passive: false });
@@ -1690,12 +1718,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const ratio = dist / pinchStartDist;
         pinchCurrentScale = Math.min(5.0, Math.max(0.5, pinchStartScale * ratio));
 
-        // Live preview via CSS transform anchored to the exact pinch point,
-        // so the content under the fingers stays visually fixed while zooming.
+        const mid = getTouchMid(e.touches);
+        const wrapperRect = pdfViewerWrapper.getBoundingClientRect();
+        pinchLatestCenterX = mid.x - wrapperRect.left;
+        pinchLatestCenterY = mid.y - wrapperRect.top;
+
+        // Live preview via CSS transform:
+        //   1. Scale around the original pinch point (transform-origin)
+        //   2. Add a translate to pan with the finger movement
+        //
+        // When fingers move, the midpoint shifts by (latestCenter - initialCenter).
+        // We apply that shift as a translateX/Y AFTER the scale so it moves in
+        // screen pixels, not scaled pixels.
         const visualRatio = pinchCurrentScale / scale;
+        const panX = pinchLatestCenterX - pinchCenterX;
+        const panY = pinchLatestCenterY - pinchCenterY;
+
         pdfPageContainer.style.transition = 'none';
         pdfPageContainer.style.transformOrigin = `${pinchOriginX}px ${pinchOriginY}px`;
-        pdfPageContainer.style.transform = `scale(${visualRatio})`;
+        // scale() first, then translate() in screen space — the order matters.
+        pdfPageContainer.style.transform = `scale(${visualRatio}) translate(${panX / visualRatio}px, ${panY / visualRatio}px)`;
     }, { passive: false });
 
     // On pinch end: remove the visual transform and re-render at the new scale
@@ -1721,34 +1763,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const scaleRatio = finalScale / scale;
             scale = finalScale;
 
-            // Compute the scroll position that keeps the pinch midpoint visually
-            // fixed after the canvas is re-rendered at the new scale.
+            // Compute the scroll position that keeps the pinch point visually fixed
+            // after the canvas is re-rendered at the new scale AND accounts for panning.
             //
-            // pinchOriginX/Y is the pinch midpoint in the container's LOCAL coordinate
-            // space (recorded at touchstart). It already accounts for any CSS centering
-            // margin applied when the content is narrower than the viewport, because:
-            //   pinchOriginX = midClientX - containerRect.left
-            //                = pinchCenterX + scrollLeft - containerMarginLeft
+            // At the new scale the container will be scaleRatio times larger, so
+            // pinchOriginX (container-local) maps to (pinchOriginX * scaleRatio) in
+            // the new scroll space.  We want that point to appear at the final finger
+            // midpoint (pinchLatestCenterX) in the viewport, so:
             //
-            // After the canvas re-renders at newScale, the container grows by scaleRatio,
-            // so the pinch point moves to (pinchOriginX * scaleRatio) in the new container.
-            // To keep it at viewport position pinchCenterX, we need:
-            //   newScrollLeft = pinchOriginX * scaleRatio - pinchCenterX
+            //   newScrollLeft = padding + pinchOriginX * scaleRatio - pinchLatestCenterX
             //
-            // This is more accurate than (scrollLeft + pinchCenterX) * scaleRatio - pinchCenterX
-            // because pinchOriginX already encodes the container-local coordinate,
-            // eliminating the centering margin.
-            //
-            // IMPORTANT: pdfViewerWrapper has CSS padding (1 rem on all sides).
-            // That padding is part of the scrollable area, so after re-render the
-            // container's left/top edge is at `paddingLeft` / `paddingTop` inside
-            // the scroll area, not at 0.  We must add the padding to the target
-            // scroll position; without it the view always lands `padding` px short.
-            const wrapperCS   = window.getComputedStyle(pdfViewerWrapper);
-            const wrapperPadL = parseFloat(wrapperCS.paddingLeft)  || 0;
-            const wrapperPadT = parseFloat(wrapperCS.paddingTop)   || 0;
-            pendingScrollLeft = Math.max(0, wrapperPadL + pinchOriginX * scaleRatio - pinchCenterX);
-            pendingScrollTop  = Math.max(0, wrapperPadT + pinchOriginY * scaleRatio - pinchCenterY);
+            // Using pinchLatestCenterX (not the original pinchCenterX) makes the
+            // scroll land at wherever the fingers actually ended up, which includes
+            // any panning the user did during the gesture.
+            const wrapperCS = window.getComputedStyle(pdfViewerWrapper);
+            const wrapperPadL = parseFloat(wrapperCS.paddingLeft) || 0;
+            const wrapperPadT = parseFloat(wrapperCS.paddingTop) || 0;
+            pendingScrollLeft = Math.max(0, wrapperPadL + pinchOriginX * scaleRatio - pinchLatestCenterX);
+            pendingScrollTop = Math.max(0, wrapperPadT + pinchOriginY * scaleRatio - pinchLatestCenterY);
 
             pageRendering = false;
             pageNumPending = null;
