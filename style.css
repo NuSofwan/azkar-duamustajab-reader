@@ -1210,3 +1210,192 @@ input:checked+.slider:before {
         pointer-events: none;
     }
 }
+
+/* ===== E-BOOK READER ENHANCEMENTS ===== */
+
+/* --- Sepia Theme --- */
+[data-theme='sepia'] {
+    --bg-primary: #F5ECD7;
+    --bg-secondary: #EDD9B0;
+    --bg-secondary-glass: rgba(245, 236, 215, 0.92);
+    --text-primary: #3D2B1F;
+    --text-secondary: #7D5A45;
+    --accent: #A0522D;
+    --accent-hover: #7B3B18;
+    --accent-light: rgba(160, 82, 45, 0.15);
+    --gold: #C8943A;
+    --border: #D4B896;
+    --shadow-sm: 0 1px 3px rgba(100, 60, 20, 0.1);
+    --shadow-md: 0 4px 12px rgba(100, 60, 20, 0.18);
+    --shadow-lg: 0 10px 28px rgba(100, 60, 20, 0.22);
+}
+
+[data-theme='sepia'] body::before {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23A0522D' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Sepia PDF filter — warm parchment paper look */
+[data-theme='sepia'] #pdfCanvas {
+    filter: sepia(0.45) brightness(1.04) contrast(0.97);
+}
+
+/* --- Book-Like Page Shadow --- */
+.pdf-page-container {
+    border-radius: 2px;
+    box-shadow:
+        -4px 0 8px rgba(0, 0, 0, 0.07),
+        4px 0 8px rgba(0, 0, 0, 0.07),
+        0 6px 20px rgba(0, 0, 0, 0.18),
+        0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* Subtle left-side "spine" glow */
+.pdf-page-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6px;
+    height: 100%;
+    background: linear-gradient(to right, rgba(0,0,0,0.08), transparent);
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 2px 0 0 2px;
+}
+
+/* --- Page Turn Animation --- */
+@keyframes page-turn-next {
+    0%   { opacity: 1; transform: translateX(0) scale(1); }
+    25%  { opacity: 0; transform: translateX(-18px) scale(0.98); }
+    26%  { opacity: 0; transform: translateX(12px) scale(0.98); }
+    100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes page-turn-prev {
+    0%   { opacity: 1; transform: translateX(0) scale(1); }
+    25%  { opacity: 0; transform: translateX(18px) scale(0.98); }
+    26%  { opacity: 0; transform: translateX(-12px) scale(0.98); }
+    100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.page-turn-next { animation: page-turn-next 0.32s ease-in-out; }
+.page-turn-prev { animation: page-turn-prev 0.32s ease-in-out; }
+
+/* --- Bottom Reading Bar --- */
+.reader-bottom-bar {
+    width: 100%;
+    background-color: var(--bg-secondary-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 20;
+    transition: background-color 0.3s ease, opacity 0.4s ease, transform 0.4s ease;
+}
+
+.reader-progress-track {
+    width: 100%;
+    height: 3px;
+    background-color: var(--border);
+    cursor: pointer;
+    transition: height 0.2s ease;
+}
+
+.reader-progress-track:hover {
+    height: 5px;
+}
+
+.reader-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    border-radius: 0 2px 2px 0;
+    transition: width 0.3s ease;
+    pointer-events: none;
+}
+
+.reader-nav-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.35rem 1rem;
+}
+
+.bottom-page-info {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 100px;
+    text-align: center;
+    letter-spacing: 0.02em;
+}
+
+/* Hide top nav arrows when bottom bar is visible (declutter) */
+#prevPage,
+#nextPage {
+    display: none;
+}
+
+/* --- Sepia Toggle Button --- */
+.sepia-toggle {
+    font-size: 1.1rem;
+}
+
+[data-theme='sepia'] .sepia-toggle {
+    background-color: var(--accent-light);
+    color: var(--accent);
+}
+
+/* --- Reading Background improvement --- */
+.pdf-viewer-wrapper {
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 28px,
+        rgba(0,0,0,0.012) 28px,
+        rgba(0,0,0,0.012) 29px
+    ), var(--bg-primary);
+}
+
+[data-theme='sepia'] .pdf-viewer-wrapper {
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 28px,
+        rgba(100,60,20,0.04) 28px,
+        rgba(100,60,20,0.04) 29px
+    ), var(--bg-primary);
+}
+
+[data-theme='dark'] .pdf-viewer-wrapper {
+    background: var(--bg-primary);
+}
+
+/* Focus mode: hide bottom bar too */
+body.focus-mode .reader-bottom-bar {
+    opacity: 0;
+    transform: translateY(100%);
+    pointer-events: none;
+}
+
+/* --- Sepia badge on Theme Toggle --- */
+.sepia-toggle .fa-book-open-reader {
+    transition: color 0.3s ease;
+}
+
+/* Subtle page gutter effect on reading wrapper */
+.pdf-viewer-wrapper {
+    position: relative;
+}
+
+@media (max-width: 768px) {
+    .reader-nav-row {
+        padding: 0.25rem 0.5rem;
+    }
+
+    .bottom-page-info {
+        font-size: 0.82rem;
+        min-width: 80px;
+    }
+}

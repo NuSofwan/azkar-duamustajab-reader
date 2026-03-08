@@ -61,6 +61,9 @@
             <button class="book-btn" data-book="dua_mustajab_th.pdf">ดุอามุสตาญาบ</button>
         </nav>
         <div class="nav-controls">
+            <button class="icon-btn sepia-toggle" aria-label="Toggle Sepia" title="โหมดซีเปีย (อ่านสบายตา)">
+                <i class="fa-solid fa-book-open-reader"></i>
+            </button>
             <button class="icon-btn theme-toggle" aria-label="Toggle Theme" title="สลับธีมสี">
                 <i class="fa-solid fa-moon"></i>
             </button>
@@ -246,6 +249,22 @@
                         <div id="textLayer" class="textLayer"></div>
                     </div>
                 </div>
+
+                <!-- E-book Bottom Reading Bar -->
+                <div class="reader-bottom-bar" id="readerBottomBar">
+                    <div class="reader-progress-track" id="readerProgressTrack" title="ความคืบหน้าการอ่าน">
+                        <div class="reader-progress-fill" id="readerProgress" style="width: 0%"></div>
+                    </div>
+                    <div class="reader-nav-row">
+                        <button class="icon-btn" id="prevPageBottom" title="หน้าก่อนหน้า">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="bottom-page-info" id="bottomPageInfo">หน้า — / —</span>
+                        <button class="icon-btn" id="nextPageBottom" title="หน้าถัดไป">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
         </section>
         <!-- Phase 3: Smart Tasbih -->
@@ -272,6 +291,147 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
     </script>
     <script src="script.js"></script>
+
+    <!-- E-Book Reader Enhancements -->
+    <script>
+    (function () {
+        'use strict';
+
+        /* ── Sepia Toggle ── */
+        var sepiaBtn = document.querySelector('.sepia-toggle');
+        var themeIcon = document.querySelector('.theme-toggle i');
+
+        function applySepiaState(on) {
+            if (on) {
+                document.body.setAttribute('data-theme', 'sepia');
+                localStorage.setItem('theme', 'sepia');
+                if (themeIcon) {
+                    themeIcon.classList.remove('fa-sun');
+                    themeIcon.classList.add('fa-moon');
+                }
+            } else {
+                if (document.body.getAttribute('data-theme') === 'sepia') {
+                    document.body.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                }
+            }
+        }
+
+        // Restore sepia on load (before dark-mode restore might run)
+        if (localStorage.getItem('theme') === 'sepia') {
+            applySepiaState(true);
+        }
+
+        if (sepiaBtn) {
+            sepiaBtn.addEventListener('click', function () {
+                var isSepia = document.body.getAttribute('data-theme') === 'sepia';
+                applySepiaState(!isSepia);
+            });
+        }
+
+        // If dark theme toggle is clicked, clear sepia too
+        var darkBtn = document.querySelector('.theme-toggle');
+        if (darkBtn) {
+            darkBtn.addEventListener('click', function () {
+                if (document.body.getAttribute('data-theme') === 'sepia') {
+                    document.body.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+        }
+
+        /* ── Bottom Navigation Bar ── */
+        var prevBottom = document.getElementById('prevPageBottom');
+        var nextBottom = document.getElementById('nextPageBottom');
+        var prevTop    = document.getElementById('prevPage');
+        var nextTop    = document.getElementById('nextPage');
+
+        if (prevBottom && prevTop) {
+            prevBottom.addEventListener('click', function () { prevTop.click(); });
+        }
+        if (nextBottom && nextTop) {
+            nextBottom.addEventListener('click', function () { nextTop.click(); });
+        }
+
+        /* ── Progress Bar + Bottom Page Info ── */
+        var readerProgress  = document.getElementById('readerProgress');
+        var bottomPageInfo  = document.getElementById('bottomPageInfo');
+        var pageNumSelect   = document.getElementById('pageNumSelect');
+        var pageCountSpan   = document.getElementById('pageCount');
+
+        function updateBottomBar() {
+            var current = parseInt(pageNumSelect.value, 10) || 0;
+            var total   = parseInt(pageCountSpan.textContent, 10) || 0;
+            if (current && total) {
+                var pct = Math.round((current / total) * 100);
+                if (readerProgress) readerProgress.style.width = pct + '%';
+                if (bottomPageInfo) bottomPageInfo.textContent = 'หน้า ' + current + ' / ' + total;
+            }
+        }
+
+        // Watch page select value changes
+        if (pageNumSelect) {
+            pageNumSelect.addEventListener('change', function () {
+                setTimeout(updateBottomBar, 50);
+            });
+            // Also poll lightly for first load
+            var initCheck = setInterval(function () {
+                if (pageCountSpan && pageCountSpan.textContent !== '-') {
+                    updateBottomBar();
+                    clearInterval(initCheck);
+                }
+            }, 300);
+        }
+
+        // Observe pageCount text updates
+        if (pageCountSpan) {
+            var countObs = new MutationObserver(function () { updateBottomBar(); });
+            countObs.observe(pageCountSpan, { childList: true, characterData: true, subtree: true });
+        }
+
+        // Observe pageNumSelect value updates (PDF.js sets .value programmatically)
+        if (pageNumSelect) {
+            var selectObs = new MutationObserver(function () { updateBottomBar(); });
+            selectObs.observe(pageNumSelect, { attributes: true, childList: true, subtree: true });
+        }
+
+        /* ── Page Flip Animation ── */
+        var pdfPageContainer = document.getElementById('pdfPageContainer');
+
+        function addFlipAnim(direction) {
+            if (!pdfPageContainer) return;
+            var cls = direction === 'prev' ? 'page-turn-prev' : 'page-turn-next';
+            pdfPageContainer.classList.remove('page-turn-next', 'page-turn-prev');
+            // Force reflow so adding class triggers animation
+            void pdfPageContainer.offsetWidth;
+            pdfPageContainer.classList.add(cls);
+            pdfPageContainer.addEventListener('animationend', function () {
+                pdfPageContainer.classList.remove(cls);
+                updateBottomBar();
+            }, { once: true });
+        }
+
+        if (prevTop)    prevTop.addEventListener('click',    function () { addFlipAnim('prev'); });
+        if (nextTop)    nextTop.addEventListener('click',    function () { addFlipAnim('next'); });
+        if (prevBottom) prevBottom.addEventListener('click', function () { addFlipAnim('prev'); });
+        if (nextBottom) nextBottom.addEventListener('click', function () { addFlipAnim('next'); });
+
+        /* ── Progress track click-to-seek ── */
+        var progressTrack = document.getElementById('readerProgressTrack');
+        if (progressTrack) {
+            progressTrack.addEventListener('click', function (e) {
+                var rect    = progressTrack.getBoundingClientRect();
+                var pct     = (e.clientX - rect.left) / rect.width;
+                var total   = parseInt(pageCountSpan.textContent, 10) || 0;
+                if (!total) return;
+                var targetPage = Math.max(1, Math.min(total, Math.round(pct * total)));
+                pageNumSelect.value = targetPage;
+                pageNumSelect.dispatchEvent(new Event('change'));
+            });
+        }
+
+    })();
+    </script>
 </body>
 
 </html>
