@@ -629,7 +629,13 @@ textarea:focus {
     min-height: 0;
     overflow: auto;
     display: flex;
-    justify-content: center;
+    /* justify-content: center removed — margin:0 auto on pdf-page-container
+       handles centering. This also fixes the zoom-left-scroll bug: when the
+       page is wider than the viewport (after zoom-in), justify-content:center
+       would position the item symmetrically, hiding the left overflow.
+       With auto margins, the item falls back to flex-start when it overflows,
+       so the user can always scroll left back to the start. */
+    align-items: flex-start;
     padding: 1rem;
     /* subtle pattern for PDF background */
     background-color: rgba(0, 0, 0, 0.03);
@@ -664,6 +670,10 @@ textarea:focus {
     background-color: white;
     /* PDF page ground is typically white */
     margin: 0 auto;
+    /* flex-shrink:0 prevents the flex container from squashing the page
+       when it's wider than the viewport (e.g. after zoom-in).
+       Combined with margin:0 auto this gives correct left-scroll behaviour. */
+    flex-shrink: 0;
     /* Remove padding or borders so canvas matches container perfectly */
 }
 

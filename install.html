@@ -218,13 +218,13 @@
             min-height: 430px;
         }
         .phone-mock {
-            width: min(470px, 96%);
+            width: min(300px, 72%);
             aspect-ratio: 0.51;
             position: relative;
             transform-style: preserve-3d;
             transform: rotateY(-18deg) rotateX(9deg);
             animation: phoneFloat 6.5s ease-in-out infinite;
-            filter: drop-shadow(0 30px 45px rgba(0,0,0,0.38));
+            filter: drop-shadow(0 20px 32px rgba(0,0,0,0.38));
         }
         .p-ios .phone-mock { transform: rotateY(18deg) rotateX(9deg); }
         @keyframes phoneFloat {
@@ -502,8 +502,8 @@
             }
             .left-pane { align-items: center; text-align: center; }
             .subtitle { max-width: 48ch; }
-            .phone-stage { justify-content: center; min-height: 320px; }
-            .phone-mock { width: min(360px, 78vw); }
+            .phone-stage { justify-content: center; min-height: 260px; }
+            .phone-mock { width: min(240px, 58vw); }
             .right-pane { height: auto; }
             .steps-grid { grid-template-columns: 1fr 1fr; }
         }
@@ -522,8 +522,8 @@
             .title { font-size: clamp(2.1rem, 8vw, 2.9rem); }
             .subtitle { font-size: .95rem; max-width: 28ch; }
             .micro-badges, .hero-cta { justify-content: center; }
-            .phone-stage { justify-content: center; min-height: 260px; }
-            .phone-mock { width: min(318px, 80vw); }
+            .phone-stage { justify-content: center; min-height: 200px; }
+            .phone-mock { width: min(200px, 52vw); }
             .right-pane { width: 100%; }
             .steps-grid { grid-template-columns: 1fr; }
             .card { min-height: unset; }
@@ -570,26 +570,31 @@
                     <div class="hero-chip"><i class="fa-solid fa-house"></i> เพิ่มลงหน้าจอหลัก</div>
                 </div>
                 <div class="phone-stage">
-                    <div class="phone-mock" aria-hidden="true">
-                        <div class="phone-body"></div>
-                        <div class="phone-side"></div>
-                        <div class="phone-screen">
-                            <div class="phone-notch"></div>
-                            <div class="screen-ui">
-                                <div class="screen-bar"></div>
-                                <div class="screen-card">
-                                    <div class="screen-lines">
-                                        <div class="screen-line"></div>
-                                        <div class="screen-line mid"></div>
-                                        <div class="screen-line short"></div>
-                                        <div class="screen-line"></div>
-                                        <div class="screen-line mid"></div>
-                                        <div class="screen-line short"></div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+                        <div style="display:inline-flex;align-items:center;gap:8px;padding:7px 18px;border-radius:999px;background:rgba(34,210,108,0.18);border:1.5px solid rgba(34,210,108,0.5);color:#7ef0aa;font-weight:800;font-size:.95rem;letter-spacing:.01em;">
+                            <i class="fa-brands fa-android" style="font-size:1.1rem;"></i> สำหรับ Android
+                        </div>
+                        <div class="phone-mock" aria-hidden="true">
+                            <div class="phone-body"></div>
+                            <div class="phone-side"></div>
+                            <div class="phone-screen">
+                                <div class="phone-notch"></div>
+                                <div class="screen-ui">
+                                    <div class="screen-bar"></div>
+                                    <div class="screen-card">
+                                        <div class="screen-lines">
+                                            <div class="screen-line"></div>
+                                            <div class="screen-line mid"></div>
+                                            <div class="screen-line short"></div>
+                                            <div class="screen-line"></div>
+                                            <div class="screen-line mid"></div>
+                                            <div class="screen-line short"></div>
+                                        </div>
+                                        <div class="install-callout android-callout"><i class="fa-solid fa-plus"></i> เพิ่มลงในหน้าจอหลัก</div>
                                     </div>
-                                    <div class="install-callout android-callout"><i class="fa-solid fa-plus"></i> เพิ่มลงในหน้าจอหลัก</div>
                                 </div>
+                                <div class="touch-glow touch-android"></div>
                             </div>
-                            <div class="touch-glow touch-android"></div>
                         </div>
                     </div>
                 </div>
@@ -627,26 +632,31 @@
                     <div class="hero-chip"><i class="fa-solid fa-plus"></i> เพิ่มไปที่หน้าจอโฮม</div>
                 </div>
                 <div class="phone-stage">
-                    <div class="phone-mock" aria-hidden="true">
-                        <div class="phone-body"></div>
-                        <div class="phone-side"></div>
-                        <div class="phone-screen">
-                            <div class="phone-notch"></div>
-                            <div class="screen-ui">
-                                <div class="screen-bar"></div>
-                                <div class="screen-card">
-                                    <div class="screen-lines">
-                                        <div class="screen-line"></div>
-                                        <div class="screen-line mid"></div>
-                                        <div class="screen-line short"></div>
-                                        <div class="screen-line"></div>
-                                        <div class="screen-line mid"></div>
-                                        <div class="screen-line short"></div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+                        <div style="display:inline-flex;align-items:center;gap:8px;padding:7px 18px;border-radius:999px;background:rgba(103,168,255,0.18);border:1.5px solid rgba(103,168,255,0.5);color:#a8ceff;font-weight:800;font-size:.95rem;letter-spacing:.01em;">
+                            <i class="fa-brands fa-apple" style="font-size:1.1rem;"></i> สำหรับ iPhone / iPad
+                        </div>
+                        <div class="phone-mock" aria-hidden="true">
+                            <div class="phone-body"></div>
+                            <div class="phone-side"></div>
+                            <div class="phone-screen">
+                                <div class="phone-notch"></div>
+                                <div class="screen-ui">
+                                    <div class="screen-bar"></div>
+                                    <div class="screen-card">
+                                        <div class="screen-lines">
+                                            <div class="screen-line"></div>
+                                            <div class="screen-line mid"></div>
+                                            <div class="screen-line short"></div>
+                                            <div class="screen-line"></div>
+                                            <div class="screen-line mid"></div>
+                                            <div class="screen-line short"></div>
+                                        </div>
+                                        <div class="install-callout ios-callout"><i class="fa-solid fa-plus"></i> Add to Home Screen</div>
                                     </div>
-                                    <div class="install-callout ios-callout"><i class="fa-solid fa-plus"></i> Add to Home Screen</div>
                                 </div>
+                                <div class="touch-glow touch-ios"></div>
                             </div>
-                            <div class="touch-glow touch-ios"></div>
                         </div>
                     </div>
                 </div>
@@ -669,7 +679,7 @@
     </section>
 
     <section class="page p-app" id="pg2">
-        <button class="app-back-pill" id="appBackPill" type="button"><i class="fa-solid fa-chevron-left"></i> วิธีติดตั้ง</button>
+        <button class="app-back-pill" id="appBackPill" type="button"><i class="fa-solid fa-chevron-left"></i> วิธีติดตั้ง Dua-mustajab ลงในมือถือ</button>
         <div class="edge-swipe-back" id="edgeSwipeBack" aria-hidden="true"></div>
         <iframe src="./index.html?app=true" id="appFrame" title="Dua Mustajab App" allow="fullscreen" loading="eager"></iframe>
     </section>

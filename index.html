@@ -374,7 +374,20 @@
             pageNumSelect.addEventListener('change', function () {
                 setTimeout(updateBottomBar, 50);
             });
-            // Also poll lightly for first load
+
+            // Intercept programmatic .value = x assignments from script.js
+            // (setting .value on a <select> does NOT fire 'change' event)
+            var _origValueDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+            Object.defineProperty(pageNumSelect, 'value', {
+                get: function () { return _origValueDesc.get.call(this); },
+                set: function (v) {
+                    _origValueDesc.set.call(this, v);
+                    setTimeout(updateBottomBar, 0);
+                },
+                configurable: true
+            });
+
+            // Poll lightly for first load (until pageCount is ready)
             var initCheck = setInterval(function () {
                 if (pageCountSpan && pageCountSpan.textContent !== '-') {
                     updateBottomBar();
@@ -387,12 +400,6 @@
         if (pageCountSpan) {
             var countObs = new MutationObserver(function () { updateBottomBar(); });
             countObs.observe(pageCountSpan, { childList: true, characterData: true, subtree: true });
-        }
-
-        // Observe pageNumSelect value updates (PDF.js sets .value programmatically)
-        if (pageNumSelect) {
-            var selectObs = new MutationObserver(function () { updateBottomBar(); });
-            selectObs.observe(pageNumSelect, { attributes: true, childList: true, subtree: true });
         }
 
         /* ── Page Flip Animation ── */
