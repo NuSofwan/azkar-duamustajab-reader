@@ -18,6 +18,14 @@
          never redirected. -->
     <script>
         (function () {
+            try {
+                var savedTheme = localStorage.getItem('theme');
+                var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (savedTheme === 'dark' || savedTheme === 'sepia' || (!savedTheme && prefersDark)) {
+                    document.documentElement.setAttribute('data-theme', savedTheme || 'dark');
+                }
+            } catch (e) { }
+
             var isStandalone = window.matchMedia('(display-mode: standalone)').matches
                             || window.navigator.standalone === true;
             var hasAppFlag  = window.location.search.indexOf('app=true') !== -1;
@@ -38,8 +46,10 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="Dua Mustajab — อ่านดุอาและอัซการยามเช้า-เย็น">
     <meta property="og:description" content="อ่านดุอามุสตาญาบและอัซการยามเช้า-เย็น (ภาษาไทย) พร้อมบุ๊กมาร์ก จดบันทึก ไฮไลต์ และตัสบีห์ ใช้งานออฟไลน์ได้">
-    <meta property="og:image" content="icon.png">
-    <meta name="twitter:card" content="summary">
+    <meta property="og:image" content="og-card.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
 
     <!-- iOS PWA Support -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -47,8 +57,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Dua Mustajab">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
-    <link rel="icon" href="icon.png" type="image/png">
-    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+    <link rel="apple-touch-icon" href="apple-touch-icon-180.png">
+    <link rel="apple-touch-startup-image" href="splash-iphone-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+    <link rel="apple-touch-startup-image" href="splash-iphone-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+    <link rel="apple-touch-startup-image" href="splash-iphone-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+    <link rel="apple-touch-startup-image" href="splash-iphone-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+    <link rel="apple-touch-startup-image" href="splash-ipad-2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+    <link rel="apple-touch-startup-image" href="splash-ipad-landscape-2732x2048.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
 
     <!-- Google Fonts -->
     <link
@@ -63,6 +79,9 @@
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag() { dataLayer.push(arguments); }
+        gtag('consent', 'default', {
+            'analytics_storage': localStorage.getItem('analyticsConsent') === 'granted' ? 'granted' : 'denied'
+        });
         gtag('js', new Date());
 
         gtag('config', 'G-880D9JST3X');
@@ -70,6 +89,9 @@
 </head>
 
 <body>
+    <noscript>
+        <div class="noscript-warning">แอปอ่าน PDF นี้ต้องใช้ JavaScript เพื่อเปิดหนังสือ บันทึกหน้า และใช้งานออฟไลน์ครับ</div>
+    </noscript>
     <header class="navbar">
         <div class="logo">
             <i class="fa-solid fa-book-open"></i> Dua Mustajab
@@ -148,6 +170,42 @@
                     </ul>
                 </div>
 
+                <div class="tools-section">
+                    <h4><i class="fa-solid fa-magnifying-glass"></i> ค้นหาในหนังสือ</h4>
+                    <div class="inline-control">
+                        <input id="searchInput" type="search" placeholder="ค้นหาคำไทยหรืออาหรับ">
+                        <button id="searchBtn" class="primary-btn" title="ค้นหา"><i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                    <p id="searchStatus" class="status-msg muted-status"></p>
+                    <ul id="searchResults" class="bookmarks-list compact-list"></ul>
+                </div>
+
+                <div class="tools-section">
+                    <h4><i class="fa-solid fa-sliders"></i> ตั้งค่าการอ่าน</h4>
+                    <label class="setting-row">
+                        <span>ความสว่าง PDF</span>
+                        <input id="brightnessRange" type="range" min="70" max="115" value="100">
+                    </label>
+                    <label class="setting-row">
+                        <span>ความเร็วแอนิเมชัน</span>
+                        <select id="motionSelect">
+                            <option value="normal">ปกติ</option>
+                            <option value="reduced">ลดลง</option>
+                        </select>
+                    </label>
+                    <button id="resetReadingPrefsBtn" class="primary-btn w-full mt-2"><i class="fa-solid fa-rotate-left"></i> คืนค่าการอ่าน</button>
+                </div>
+
+                <div class="tools-section">
+                    <h4><i class="fa-solid fa-database"></i> สำรองข้อมูล</h4>
+                    <div class="two-button-row">
+                        <button id="exportDataBtn" class="primary-btn"><i class="fa-solid fa-file-export"></i> ส่งออก</button>
+                        <button id="importDataBtn" class="primary-btn"><i class="fa-solid fa-file-import"></i> นำเข้า</button>
+                    </div>
+                    <input id="importDataInput" type="file" accept="application/json" hidden>
+                    <p id="dataPortabilityStatus" class="status-msg muted-status"></p>
+                </div>
+
                 <!-- Phase 3: Bookmarks -->
                 <div class="tools-section">
                     <h4>บุ๊กมาร์ก</h4>
@@ -210,12 +268,22 @@
                                     class="fa-solid fa-magnifying-glass-plus"></i></button>
                             <button id="zoomOut" class="icon-btn" title="ย่อ (Zoom Out)"><i
                                     class="fa-solid fa-magnifying-glass-minus"></i></button>
+                            <!-- Fit to width -->
+                            <button id="fitWidthBtn" class="icon-btn" title="พอดีความกว้าง"
+                                    aria-label="พอดีความกว้าง"><i
+                                    class="fa-solid fa-arrows-left-right-to-line"></i></button>
                             <!-- Highlighter Mode -->
                             <button id="toggleHighlightModeBtn" class="icon-btn" title="เปิด/ปิด โหมดไฮไลท์"><i
                                     class="fa-solid fa-highlighter"></i></button>
+                            <!-- Memorization (hide text) Mode -->
+                            <button id="toggleMemorizationBtn" class="icon-btn" title="โหมดท่องจำ (ซ่อนข้อความ)"
+                                    aria-label="โหมดท่องจำ"><i class="fa-solid fa-eye-slash"></i></button>
                             <!-- Tasbih Toggle -->
                             <button id="toggleTasbihBtn" class="icon-btn" title="ปุ่มซีกีร"><i
                                     class="fa-solid fa-hand-holding-heart"></i></button>
+                            <!-- Share -->
+                            <button id="sharePageBtn" class="icon-btn" title="แชร์แอป"
+                                    aria-label="แชร์แอป"><i class="fa-solid fa-share-nodes"></i></button>
                         </div>
                     </div>
                 </div>
@@ -309,6 +377,14 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
     </script>
     <script src="script.js"></script>
+
+    <div id="cookieConsent" class="cookie-consent" hidden>
+        <p>เราใช้ Google Analytics เพื่อดูภาพรวมการใช้งานและปรับปรุงแอป โดยไม่ใช้ข้อมูลนี้เพื่อระบุตัวตนครับ</p>
+        <div>
+            <button id="declineAnalyticsBtn" class="secondary-btn">ไม่ยินยอม</button>
+            <button id="acceptAnalyticsBtn" class="primary-btn">ยินยอม</button>
+        </div>
+    </div>
 
     <!-- E-Book Reader Enhancements -->
     <script>

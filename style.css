@@ -678,17 +678,27 @@ textarea:focus {
 }
 
 #pdfCanvas {
+    --pdf-brightness: 100%;
     image-rendering: high-quality;
     image-rendering: -webkit-optimize-contrast;
     transition: filter 0.3s ease;
+    /* Light-mode brightness control (overridden by dark/sepia rules below,
+       which fold --pdf-brightness into their own filters). */
+    filter: brightness(var(--pdf-brightness, 100%));
 }
 
 [data-theme='dark'] #pdfCanvas {
     /* Night mode for PDF: invert colors, rotate hue back, soften brightness */
-    filter: invert(0.9) hue-rotate(180deg) brightness(85%) contrast(1.1);
+    filter: invert(0.9) hue-rotate(180deg) brightness(calc(var(--pdf-brightness, 100%) * 0.85)) contrast(1.1);
 }
 
 /* Phase 4 Text & Highlight Layers */
+.textLayer span.search-hit {
+    background: rgba(255, 183, 77, 0.45);
+    border-radius: 3px;
+    outline: 1px solid rgba(255, 138, 101, 0.55);
+}
+
 .textLayer {
     position: absolute;
     left: 0;
@@ -859,16 +869,22 @@ textarea:focus {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-/* Phase 5: Memorization Mask */
+/* Phase 5: Memorization Mask (horizontal strips overlaid on the page) */
 .memorization-mask {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 6;
+    /* Solid brand cover that fully hides the text underneath */
+    background: var(--accent);
+    opacity: 0.96;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     mix-blend-mode: normal !important;
     /* Override highlight blend mode */
-    border-radius: 4px;
     cursor: pointer !important;
     pointer-events: auto !important;
     /* Allow clicking on it */
-    transition: opacity 0.3s ease, background-color 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    transition: opacity 0.25s ease, background-color 0.3s ease;
 }
 
 .memorization-mask:hover {
@@ -1246,7 +1262,7 @@ input:checked+.slider:before {
 
 /* Sepia PDF filter — warm parchment paper look */
 [data-theme='sepia'] #pdfCanvas {
-    filter: sepia(0.45) brightness(1.04) contrast(0.97);
+    filter: sepia(0.45) brightness(calc(var(--pdf-brightness, 100%) * 1.04)) contrast(0.97);
 }
 
 /* --- Book-Like Page Shadow --- */
@@ -1447,6 +1463,151 @@ body.focus-mode .reader-bottom-bar {
 @media (max-width: 768px) {
     .mobile-menu {
         top: calc(73px + env(safe-area-inset-top));
+    }
+}
+
+
+.noscript-warning {
+    position: fixed;
+    z-index: 3000;
+    inset: 0 0 auto 0;
+    padding: 0.9rem 1rem;
+    background: #7c2d12;
+    color: #fff;
+    text-align: center;
+    font-weight: 600;
+}
+
+.inline-control {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.inline-control input,
+.setting-row select {
+    min-height: 44px;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font: inherit;
+    padding: 0.65rem 0.75rem;
+}
+
+.setting-row {
+    display: grid;
+    gap: 0.4rem;
+    margin-bottom: 0.9rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.setting-row input[type='range'] {
+    width: 100%;
+    accent-color: var(--accent);
+}
+
+.two-button-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.muted-status {
+    color: var(--text-secondary);
+    text-align: left;
+}
+
+.compact-list li {
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.secondary-btn {
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    min-height: 44px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.cookie-consent {
+    position: fixed;
+    left: max(1rem, env(safe-area-inset-left));
+    right: auto;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    z-index: 2500;
+    width: min(320px, calc(100vw - 2rem));
+    max-width: 320px;
+    margin: 0;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 1rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: center;
+}
+
+.cookie-consent[hidden] {
+    display: none;
+}
+
+.cookie-consent p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.55;
+}
+
+.cookie-consent div {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.cookie-consent button {
+    width: 100%;
+}
+
+.pdf-page-container.loading-page::before {
+    content: '';
+    position: absolute;
+    inset: 1rem;
+    z-index: 0;
+    border-radius: var(--radius);
+    background: linear-gradient(100deg, rgba(255, 138, 101, 0.08) 20%, rgba(255, 183, 77, 0.18) 40%, rgba(255, 138, 101, 0.08) 60%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes skeleton-shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+}
+
+body[data-motion='reduced'] *,
+body[data-motion='reduced'] *::before,
+body[data-motion='reduced'] *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+}
+
+@media (max-width: 640px) {
+    .two-button-row {
+        grid-template-columns: 1fr;
     }
 }
 

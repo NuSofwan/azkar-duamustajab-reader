@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dua-mustajab-v23';
+const CACHE_NAME = 'dua-mustajab-v25';
 const urlsToCache = [
     './',
     './index.html',
@@ -6,8 +6,18 @@ const urlsToCache = [
     './style.css',
     './script.js',
     './manifest.json',
-    './icon.png',
     './icon.svg',
+    './icon-192.png',
+    './icon-512.png',
+    './icon-maskable-512.png',
+    './apple-touch-icon-180.png',
+    './og-card.png',
+    './splash-iphone-1290x2796.png',
+    './splash-iphone-1179x2556.png',
+    './splash-iphone-1170x2532.png',
+    './splash-iphone-1125x2436.png',
+    './splash-ipad-2048x2732.png',
+    './splash-ipad-landscape-2732x2048.png',
     // Only pre-cache the small PDF (493KB). The large PDF (69MB) is too big
     // to pre-cache — it will be cached on-demand after first successful load.
     './th_athkar_assabah_walmasaa.pdf',

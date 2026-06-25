@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextPageBtn = document.getElementById('nextPage');
     const zoomInBtn = document.getElementById('zoomIn');
     const zoomOutBtn = document.getElementById('zoomOut');
+    const fitWidthBtn = document.getElementById('fitWidthBtn');
+    const sharePageBtn = document.getElementById('sharePageBtn');
+    const toggleMemorizationBtn = document.getElementById('toggleMemorizationBtn');
     const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
 
     const moreToolsBtn = document.getElementById('moreToolsBtn');
@@ -38,6 +41,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveNoteBtn = document.getElementById('saveNoteBtn');
     const noteSaveStatus = document.getElementById('noteSaveStatus');
     const notesHistoryList = document.getElementById('notesHistoryList');
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const searchStatus = document.getElementById('searchStatus');
+    const searchResults = document.getElementById('searchResults');
+    const brightnessRange = document.getElementById('brightnessRange');
+    const motionSelect = document.getElementById('motionSelect');
+    const resetReadingPrefsBtn = document.getElementById('resetReadingPrefsBtn');
+    const exportDataBtn = document.getElementById('exportDataBtn');
+    const importDataBtn = document.getElementById('importDataBtn');
+    const importDataInput = document.getElementById('importDataInput');
+    const dataPortabilityStatus = document.getElementById('dataPortabilityStatus');
 
     // Phase 4 & 5 Extra Elements
     const highlightTools = document.getElementById('highlightTools');
@@ -71,6 +85,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // screen and forces line-by-line horizontal scrolling). Done once so later
     // book/page switches keep the user's chosen zoom.
     let initialFitDone = false;
+    let userHasZoomed = false;
+    let activeSearchTerm = '';
+    let isMemorizationMode = false;
+    const searchIndexCache = {};
 
     // Pending scroll correction applied at the end of the next render
     // (used by pinch-to-zoom to re-anchor the view to the pinch point)
@@ -283,12 +301,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderPage = (num) => {
         pageRendering = true;
+        pdfPageContainer.classList.add('loading-page');
         currentRenderVersion++;
         const thisVersion = currentRenderVersion;
 
         // Helper: finish rendering and process pending
         const finishRender = () => {
             pageRendering = false;
+            pdfPageContainer.classList.remove('loading-page');
 
             // Safety net: if the render was aborted/stale before
             // applyCanvasDimensions could clear the transform, do it here so we
@@ -333,6 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // left off. Written after the centering check so the first-ever load
             // can still center page 1 before the key exists.
             try { localStorage.setItem(`${currentBook}_reading_position`, String(num)); } catch (e) { }
+            // Rebuild memorization strips for the freshly rendered page (no-op if off)
+            renderMemorizationMask();
             if (pageNumPending !== null) {
                 const pending = pageNumPending;
                 pageNumPending = null;
@@ -461,9 +483,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper: build text layer from text content
     const buildTextLayer = (textContent, viewport) => {
         textLayerDiv.innerHTML = '';
+        const normalizedSearch = activeSearchTerm.trim().toLocaleLowerCase('th');
         textContent.items.forEach(textItem => {
             const span = document.createElement('span');
             span.textContent = textItem.str;
+            if (normalizedSearch && textItem.str.toLocaleLowerCase('th').includes(normalizedSearch)) {
+                span.classList.add('search-hit');
+            }
 
             const tx = textItem.transform;
             const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3])) * scale;
@@ -511,6 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     zoomInBtn.addEventListener('click', () => {
+        userHasZoomed = true;
         scale = Math.round((scale + 0.2) * 10) / 10;
         // Force immediate render — the version counter discards stale results
         pageRendering = false;
@@ -519,12 +546,103 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     zoomOutBtn.addEventListener('click', () => {
         if (scale > 0.5) {
+            userHasZoomed = true;
             scale = Math.round((scale - 0.2) * 10) / 10;
             pageRendering = false;
             pageNumPending = null;
             renderPage(pageNum);
         }
     });
+
+    if (fitWidthBtn) {
+        fitWidthBtn.addEventListener('click', () => {
+            if (!pdfDoc) return;
+            userHasZoomed = false;
+            computeFitScale(pdfDoc, pageNum).then(() => {
+                pageRendering = false;
+                pageNumPending = null;
+                renderPage(pageNum);
+                if (moreToolsMenu) moreToolsMenu.classList.remove('show');
+            });
+        });
+    }
+
+    let resizeRefitTimer = 0;
+    const refitAfterViewportChange = () => {
+        clearTimeout(resizeRefitTimer);
+        resizeRefitTimer = setTimeout(() => {
+            if (!pdfDoc || userHasZoomed) return;
+            computeFitScale(pdfDoc, pageNum).then(() => {
+                pageRendering = false;
+                pageNumPending = null;
+                renderPage(pageNum);
+            }).catch(() => { });
+        }, 250);
+    };
+    window.addEventListener('resize', refitAfterViewportChange);
+    window.addEventListener('orientationchange', refitAfterViewportChange);
+
+    if (sharePageBtn) {
+        sharePageBtn.addEventListener('click', async () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('app', 'true');
+            url.searchParams.set('book', currentBook);
+            url.searchParams.set('page', String(pageNum));
+            const selected = window.getSelection().toString().trim();
+            const shareData = {
+                title: 'Dua Mustajab',
+                text: selected || `อ่านหน้า ${pageNum} ใน ${bookDisplayNames[currentBook] || currentBook}`,
+                url: url.toString()
+            };
+            try {
+                if (navigator.share) await navigator.share(shareData);
+                else await navigator.clipboard.writeText(selected || url.toString());
+            } catch (e) { }
+            if (moreToolsMenu) moreToolsMenu.classList.remove('show');
+        });
+    }
+
+    // --- Memorization Mode (cover the page in strips; tap a strip to reveal) ---
+    // The PDF is rendered as a canvas image, so per-word masking isn't possible.
+    // Instead we overlay equal horizontal strips the user reveals one-by-one to
+    // test recall. Strips are rebuilt on every render (finishRender) so they
+    // track page/zoom changes and reset (re-hidden) when the page changes.
+    const MEMO_STRIPS = 10;
+    const clearMemorizationMask = () => {
+        pdfPageContainer.querySelectorAll('.memorization-mask').forEach(el => el.remove());
+    };
+    const renderMemorizationMask = () => {
+        clearMemorizationMask();
+        if (!isMemorizationMode) return;
+        const h = pdfPageContainer.offsetHeight;
+        const w = pdfPageContainer.offsetWidth;
+        if (!h || !w || w < 50) return;
+        const step = h / MEMO_STRIPS;
+        for (let i = 0; i < MEMO_STRIPS; i++) {
+            const strip = document.createElement('div');
+            strip.className = 'memorization-mask';
+            strip.style.top = (i * step) + 'px';
+            strip.style.height = step + 'px';
+            strip.title = 'แตะเพื่อเผย/ซ่อน';
+            strip.addEventListener('click', (e) => {
+                e.stopPropagation(); // don't toggle focus mode
+                strip.classList.toggle('revealed');
+            });
+            pdfPageContainer.appendChild(strip);
+        }
+    };
+    if (toggleMemorizationBtn) {
+        toggleMemorizationBtn.addEventListener('click', () => {
+            isMemorizationMode = !isMemorizationMode;
+            toggleMemorizationBtn.classList.toggle('active', isMemorizationMode);
+            // Avoid conflicting overlays: leave highlight mode if it's on.
+            if (isMemorizationMode && isHighlightMode && closeHighlightModeBtn) {
+                closeHighlightModeBtn.click();
+            }
+            renderMemorizationMask();
+            if (moreToolsMenu) moreToolsMenu.classList.remove('show');
+        });
+    }
 
     // Phase 2 Fix: Cache loaded PDF documents to make tab switching instant
     const pdfCache = {};
@@ -723,8 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Compute & apply a width-fitting initial scale from a page's natural size.
     // Returns a promise; resolves whether or not it succeeds (best-effort).
-    const applyInitialFitScale = (pageDoc, num) => {
-        if (initialFitDone) return Promise.resolve();
+    const computeFitScale = (pageDoc, num) => {
         return pageDoc.getPage(num).then(page => {
             const unscaled = page.getViewport({ scale: 1 });
             const pad = window.innerWidth <= 768 ? 16 : 32; // matches .pdf-viewer-wrapper padding
@@ -733,8 +850,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clamp so it never gets tiny or absurdly large on wide desktops.
             fit = Math.max(0.6, Math.min(fit, 1.5));
             scale = Math.round(fit * 100) / 100;
-            initialFitDone = true;
-        }).catch(() => { initialFitDone = true; });
+        });
+    };
+
+    const applyInitialFitScale = (pageDoc, num) => {
+        if (initialFitDone) return Promise.resolve();
+        return computeFitScale(pageDoc, num)
+            .then(() => { initialFitDone = true; })
+            .catch(() => { initialFitDone = true; });
     };
 
     const onPDFLoaded = (bookName, pdfDoc_) => {
@@ -962,6 +1085,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectBook = (bookName) => {
         if (currentBook === bookName && pdfDoc) return; // Already viewing
         currentBook = bookName;
+        userHasZoomed = false;
         try { localStorage.setItem('last_book', bookName); } catch (e) { }
 
         [...bookBtnsDesktop, ...bookBtnsMobile].forEach(btn => {
@@ -1119,6 +1243,167 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(getStorageKey('bookmarks'), JSON.stringify(bms));
         loadBookmarks();
     };
+
+
+    // --- Search, Reading Preferences, Share & Data Portability ---
+    const applyReadingPrefs = () => {
+        const brightness = localStorage.getItem('pdfBrightness') || '100';
+        const motion = localStorage.getItem('readerMotion') || 'normal';
+        if (brightnessRange) brightnessRange.value = brightness;
+        if (motionSelect) motionSelect.value = motion;
+        pdfCanvas.style.setProperty('--pdf-brightness', `${brightness}%`);
+        document.body.setAttribute('data-motion', motion);
+    };
+
+    applyReadingPrefs();
+
+    if (brightnessRange) {
+        brightnessRange.addEventListener('input', (e) => {
+            localStorage.setItem('pdfBrightness', e.target.value);
+            applyReadingPrefs();
+        });
+    }
+
+    if (motionSelect) {
+        motionSelect.addEventListener('change', (e) => {
+            localStorage.setItem('readerMotion', e.target.value);
+            applyReadingPrefs();
+        });
+    }
+
+    if (resetReadingPrefsBtn) {
+        resetReadingPrefsBtn.addEventListener('click', () => {
+            localStorage.removeItem('pdfBrightness');
+            localStorage.removeItem('readerMotion');
+            userHasZoomed = false;
+            applyReadingPrefs();
+            if (pdfDoc) computeFitScale(pdfDoc, pageNum).then(() => renderPage(pageNum));
+        });
+    }
+
+    const runSearch = async () => {
+        const term = (searchInput && searchInput.value ? searchInput.value : '').trim();
+        activeSearchTerm = term;
+        if (!term || !pdfDoc) {
+            if (searchStatus) searchStatus.textContent = term ? 'ยังไม่ได้โหลดหนังสือครับ' : '';
+            if (searchResults) searchResults.innerHTML = '';
+            if (pdfDoc) renderPage(pageNum);
+            return;
+        }
+
+        const normalizedTerm = term.toLocaleLowerCase('th');
+        const results = [];
+        const cacheKey = currentBook;
+        if (searchStatus) searchStatus.textContent = 'กำลังค้นหา...';
+        if (searchResults) searchResults.innerHTML = '';
+
+        if (!searchIndexCache[cacheKey]) searchIndexCache[cacheKey] = {};
+        for (let p = 1; p <= pdfDoc.numPages; p++) {
+            if (p % 5 === 0 && searchStatus) searchStatus.textContent = `กำลังค้นหา... ${p}/${pdfDoc.numPages}`;
+            let pageText = searchIndexCache[cacheKey][p];
+            if (!pageText) {
+                const page = await pdfDoc.getPage(p);
+                const content = await page.getTextContent();
+                pageText = content.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
+                searchIndexCache[cacheKey][p] = pageText;
+            }
+            const haystack = pageText.toLocaleLowerCase('th');
+            const idx = haystack.indexOf(normalizedTerm);
+            if (idx !== -1) {
+                const start = Math.max(0, idx - 32);
+                const end = Math.min(pageText.length, idx + term.length + 48);
+                results.push({ page: p, snippet: pageText.slice(start, end) });
+            }
+            if (results.length >= 50) break;
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        if (!searchResults || !searchStatus) return;
+        searchStatus.textContent = results.length ? `พบ ${results.length} หน้า` : 'ไม่พบคำนี้ในหนังสือ';
+        searchResults.innerHTML = '';
+        results.forEach(result => {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.innerHTML = `<i class="fa-solid fa-magnifying-glass" style="margin-right:0.5rem;"></i> หน้า ${result.page}<br><small>${result.snippet}</small>`;
+            a.addEventListener('click', () => {
+                pageNum = result.page;
+                queueRenderPage(pageNum);
+                if (window.innerWidth <= 768) sidebar.classList.remove('open');
+            });
+            li.appendChild(a);
+            searchResults.appendChild(li);
+        });
+        renderPage(pageNum);
+    };
+
+    if (searchBtn) searchBtn.addEventListener('click', runSearch);
+    if (searchInput) {
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') runSearch();
+        });
+    }
+
+    const userDataKeys = () => Object.keys(localStorage).filter(key =>
+        key.includes('_th_athkar_assabah_walmasaa.pdf') ||
+        key.includes('_dua_mustajab_th.pdf') ||
+        ['last_book', 'theme', 'hlStrokeWidth', 'pdfBrightness', 'readerMotion', 'tasbihCount', 'readingStreak', 'lastReadDate', 'notificationsEnabled'].includes(key)
+    );
+
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', () => {
+            const payload = { app: 'dua-mustajab-reader', version: 1, exportedAt: new Date().toISOString(), localStorage: {} };
+            userDataKeys().forEach(key => { payload.localStorage[key] = localStorage.getItem(key); });
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dua-mustajab-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            if (dataPortabilityStatus) dataPortabilityStatus.textContent = 'ส่งออกข้อมูลแล้ว';
+        });
+    }
+
+    if (importDataBtn && importDataInput) {
+        importDataBtn.addEventListener('click', () => importDataInput.click());
+        importDataInput.addEventListener('change', async () => {
+            const file = importDataInput.files && importDataInput.files[0];
+            if (!file) return;
+            try {
+                const data = JSON.parse(await file.text());
+                if (!data || data.app !== 'dua-mustajab-reader' || !data.localStorage) throw new Error('Invalid backup');
+                Object.entries(data.localStorage).forEach(([key, value]) => {
+                    if (typeof value === 'string') localStorage.setItem(key, value);
+                });
+                if (dataPortabilityStatus) dataPortabilityStatus.textContent = 'นำเข้าข้อมูลแล้ว';
+                applyReadingPrefs();
+                loadBookmarks();
+                loadNoteForCurrentPage();
+                updateNotesHistoryList();
+                loadHighlights(pageNum);
+            } catch (err) {
+                if (dataPortabilityStatus) dataPortabilityStatus.textContent = 'ไฟล์สำรองไม่ถูกต้อง';
+            } finally {
+                importDataInput.value = '';
+            }
+        });
+    }
+
+    const showCookieConsent = () => {
+        const banner = document.getElementById('cookieConsent');
+        const accept = document.getElementById('acceptAnalyticsBtn');
+        const decline = document.getElementById('declineAnalyticsBtn');
+        if (!banner || localStorage.getItem('analyticsConsent')) return;
+        banner.hidden = false;
+        const setConsent = (value) => {
+            localStorage.setItem('analyticsConsent', value);
+            if (window.gtag) gtag('consent', 'update', { analytics_storage: value });
+            banner.hidden = true;
+        };
+        if (accept) accept.addEventListener('click', () => setConsent('granted'));
+        if (decline) decline.addEventListener('click', () => setConsent('denied'));
+    };
+    showCookieConsent();
 
     // --- Highlighting (Phase 4 v2 - Freehand Canvas) ---
 
@@ -1481,8 +1766,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             navigator.serviceWorker.ready.then(reg => {
                                 reg.showNotification('เปิดการแจ้งเตือนสำเร็จ 🎉', {
                                     body: 'แอปจะแจ้งเตือนให้อ่านอัซการในตอนเช้า (06:00-12:00) และเย็น (16:00-20:00)',
-                                    icon: './icon.png',
-                                    badge: './icon.png',
+                                    icon: './icon-192.png',
+                                    badge: './icon-192.png',
                                     vibrate: [100, 50, 100],
                                     tag: 'setup'
                                 });
@@ -1532,8 +1817,8 @@ document.addEventListener('DOMContentLoaded', () => {
             navigator.serviceWorker.ready.then(reg => {
                 reg.showNotification(title, {
                     body: body,
-                    icon: './icon.png',
-                    badge: './icon.png',
+                    icon: './icon-192.png',
+                    badge: './icon-192.png',
                     vibrate: [200, 100, 200, 100, 200],
                     tag: tag,
                     data: { url: window.location.href }
@@ -1842,6 +2127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Keep the live preview visible until the sharp re-render completes.
         const finalScale = Math.min(5.0, Math.max(0.5, Math.round(pinchCurrentScale * 100) / 100));
         if (Math.abs(finalScale - scale) >= 0.02) {
+            userHasZoomed = true;
             const previousScale = scale;
             const scaleRatio = finalScale / previousScale;
             scale = finalScale;
@@ -1869,6 +2155,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const requestedBook = launchParams.get('book');
     if (requestedBook && allBooks.includes(requestedBook)) {
         currentBook = requestedBook;
+        // Honor ?page= from shared links by seeding the resume position, which
+        // onPDFLoaded picks up when the book opens.
+        const requestedPage = parseInt(launchParams.get('page') || '', 10);
+        if (requestedPage >= 1) {
+            try { localStorage.setItem(`${requestedBook}_reading_position`, String(requestedPage)); } catch (e) { }
+        }
     } else {
         const lastBook = localStorage.getItem('last_book');
         if (lastBook && allBooks.includes(lastBook)) currentBook = lastBook;
