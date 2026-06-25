@@ -1,7 +1,33 @@
 # WORKFLOW — Dua Mustajab Reader
 
 > เอกสารแผนงานสำหรับให้ **Codex** (หรือ AI coding agent อื่น) ดำเนินงานต่อจนสมบูรณ์ระดับมืออาชีพ
-> อัปเดตล่าสุด: 2026-06-25 • สถานะ: Phase 0 (audit + quick fixes + deploy) เสร็จแล้ว
+> อัปเดตล่าสุด: 2026-06-25 • สถานะ: Phase 0 + Phase 1 (Codex) เสร็จและทดสอบแล้ว, deploy ไลฟ์
+
+## 📌 Update log (2026-06-25, รอบที่ 2)
+
+Codex ดำเนินงานต่อและทดสอบ/แก้ในเบราว์เซอร์แล้ว — **ทำเสร็จและยืนยันการทำงาน:**
+- ✅ P1.1 ชุดไอคอนจริง (icon-192/512, maskable-512, apple-touch-180) + ลบ icon.png 3MB เดิม
+- ✅ P1.2 refit เมื่อหมุนจอ/resize (มี flag `userHasZoomed`)
+- ✅ P1.3 ปุ่ม Fit-to-width ใน toolbar
+- ✅ P2.1 โหมดท่องจำ (strip mask + tap reveal) — *Codex ทิ้ง stub ไว้, รอบนี้ implement จริง + เพิ่มปุ่ม + CSS*
+- ✅ P2.2 ค้นหาข้อความ + ไฮไลต์ + กระโดดหน้า (cache ต่อหน้า)
+- ✅ P2.3 ตั้งค่าการอ่าน (ความสว่าง PDF ใช้ได้ทุกธีม, ความเร็วแอนิเมชัน)
+- ✅ P2.4 ปุ่มแชร์ (Web Share + clipboard) + รองรับ `?page=` deep-link
+- ✅ P2.5 Export/Import ข้อมูลผู้ใช้เป็น JSON
+- ✅ P2.6 install.html เปิดให้ซูมได้ (เอา user-scalable=no ออก)
+- ✅ P3.1 no-flash theme bootstrap ใน `<head>`
+- ✅ P3.2 iOS splash screens (apple-touch-startup-image)
+- ✅ P3.3 og:image การ์ดแชร์ 1200×630 (`og-card.png`)
+- ✅ P3.4 loading skeleton, ✅ P3.5 cookie consent (PDPA), ✅ P3.7 `<noscript>`
+
+**ยังเปิดอยู่ (งานรอบถัดไป):**
+- ⬜ P1.4 ตรวจความถูกต้องของสารบัญเทียบ PDF จริง
+- ⬜ P1.5 ย้าย highlight/notes → IndexedDB (กัน quota เต็ม)
+- ⬜ P2.7 onboarding/illustration states (ใช้ image2.0)
+- ⬜ P3.6 รัน Lighthouse ให้ ≥ 90 ทุกหมวด แล้วแก้ที่เหลือ
+- ⬜ memorization: พิจารณาบันทึกสถานะ reveal ต่อหน้า + กันชน gesture เปลี่ยนหน้า
+
+---
 
 ---
 
