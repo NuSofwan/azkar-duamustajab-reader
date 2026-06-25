@@ -29,7 +29,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Pages
+        # enablement: true lets the first run turn on GitHub Pages (build type
+        # "workflow") automatically, so no manual Settings step is required.
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
