@@ -3,7 +3,13 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- viewport-fit=cover lets the layout extend under the notch/home indicator
+         on iPhone/iPad; we then pad with env(safe-area-inset-*) in CSS so nothing
+         is clipped. user-scalable kept enabled for accessibility (pinch zoom). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="แอปอ่านดุอามุสตาญาบและอัซการยามเช้า-เย็น (ภาษาไทย) พร้อมบุ๊กมาร์ก จดบันทึก ไฮไลต์ ตัสบีห์ และโหมดอ่านสบายตา ใช้งานออฟไลน์ได้แบบ PWA">
+    <meta name="author" content="Dua Mustajab">
+    <meta name="color-scheme" content="light dark">
     <!-- Install-guide redirect:
          When opened in a regular browser (not installed PWA) and without the
          ?app=true flag (which the install guide's iframe uses), send the visitor
@@ -20,15 +26,27 @@
             }
         })();
     </script>
-    <title>Dua Mustajab</title>
+    <title>Dua Mustajab — อ่านดุอาและอัซการยามเช้า-เย็น</title>
     <!-- Phase 6: PWA Manifest and Theme Color -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#3b82f6">
+    <!-- Theme color matches the peach/salmon brand. A dark variant is supplied
+         via media query so the browser chrome blends in both modes. -->
+    <meta name="theme-color" content="#FF8A65" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1F1B18" media="(prefers-color-scheme: dark)">
+
+    <!-- Open Graph / social sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Dua Mustajab — อ่านดุอาและอัซการยามเช้า-เย็น">
+    <meta property="og:description" content="อ่านดุอามุสตาญาบและอัซการยามเช้า-เย็น (ภาษาไทย) พร้อมบุ๊กมาร์ก จดบันทึก ไฮไลต์ และตัสบีห์ ใช้งานออฟไลน์ได้">
+    <meta property="og:image" content="icon.png">
+    <meta name="twitter:card" content="summary">
 
     <!-- iOS PWA Support -->
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Dua Mustajab">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="icon" href="icon.png" type="image/png">
     <link rel="apple-touch-icon" href="icon.png">
 
@@ -79,14 +97,14 @@
     </div>
 
     <!-- PDF Loading Overlay -->
-    <div id="pdfLoadingOverlay"
-        style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:200; display:none; flex-direction:column; align-items:center; justify-content:center; gap:1rem;">
+    <div id="pdfLoadingOverlay" role="status" aria-live="polite"
+        style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:200; display:none; flex-direction:column; align-items:center; justify-content:center; gap:1rem;">
         <i class="fa-solid fa-book-open"
-            style="font-size:2.5rem; color:#3b82f6; animation:pulse 1.5s ease-in-out infinite;"></i>
+            style="font-size:2.5rem; color:#FF8A65; animation:pulse 1.5s ease-in-out infinite;"></i>
         <div style="color:white; font-size:1.1rem; font-weight:500;" id="loadingText">กำลังโหลด ดุอามุสตาญาบ...</div>
         <div style="width:260px; height:8px; background:rgba(255,255,255,0.2); border-radius:8px; overflow:hidden;">
             <div id="loadingProgressBar"
-                style="width:0%; height:100%; background:linear-gradient(90deg,#3b82f6,#60a5fa); border-radius:8px; transition:width 0.3s ease;">
+                style="width:0%; height:100%; background:linear-gradient(90deg,#FF8A65,#FFB74D); border-radius:8px; transition:width 0.3s ease;">
             </div>
         </div>
         <div style="color:rgba(255,255,255,0.7); font-size:0.85rem;" id="loadingPercent">0%</div>
@@ -256,11 +274,11 @@
                         <div class="reader-progress-fill" id="readerProgress" style="width: 0%"></div>
                     </div>
                     <div class="reader-nav-row">
-                        <button class="icon-btn" id="prevPageBottom" title="หน้าก่อนหน้า">
+                        <button class="icon-btn" id="prevPageBottom" title="หน้าก่อนหน้า" aria-label="หน้าก่อนหน้า">
                             <i class="fa-solid fa-chevron-left"></i>
                         </button>
-                        <span class="bottom-page-info" id="bottomPageInfo">หน้า — / —</span>
-                        <button class="icon-btn" id="nextPageBottom" title="หน้าถัดไป">
+                        <span class="bottom-page-info" id="bottomPageInfo" aria-live="polite">หน้า — / —</span>
+                        <button class="icon-btn" id="nextPageBottom" title="หน้าถัดไป" aria-label="หน้าถัดไป">
                             <i class="fa-solid fa-chevron-right"></i>
                         </button>
                     </div>

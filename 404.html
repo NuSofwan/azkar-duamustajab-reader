@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#FF8A65">
+    <meta name="robots" content="noindex">
+    <title>ไม่พบหน้านี้ — Dua Mustajab</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #FFF5F0, #FFE0D2);
+            color: #1F2937;
+            text-align: center;
+            padding: 1.5rem;
+        }
+        .card {
+            background: #fff;
+            border-radius: 24px;
+            padding: 3rem 2rem;
+            max-width: 420px;
+            box-shadow: 0 20px 50px rgba(255, 138, 101, 0.25);
+        }
+        .code { font-size: 4rem; font-weight: 800; color: #FF8A65; line-height: 1; }
+        h1 { font-size: 1.3rem; margin: 0.75rem 0 0.5rem; }
+        p { color: #6B7280; margin-bottom: 1.5rem; line-height: 1.6; }
+        a.btn {
+            display: inline-block;
+            background: #FF8A65;
+            color: #fff;
+            text-decoration: none;
+            padding: 0.8rem 1.6rem;
+            border-radius: 999px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        a.btn:hover { background: #F4511E; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="code">404</div>
+        <h1>ไม่พบหน้าที่ต้องการ</h1>
+        <p>หน้าที่คุณเปิดอาจถูกย้ายหรือไม่มีอยู่ ลองกลับไปที่หน้าหลักของแอปได้เลยครับ</p>
+        <a class="btn" id="homeLink" href="/">กลับสู่หน้าหลัก</a>
+    </div>
+    <script>
+        // GitHub Project Pages live under /<repo>/, so derive the base path from
+        // the first segment of the URL instead of assuming the domain root.
+        (function () {
+            var seg = location.pathname.split('/').filter(Boolean)[0];
+            var base = seg ? '/' + seg + '/' : '/';
+            document.getElementById('homeLink').setAttribute('href', base);
+        })();
+    </script>
+</body>
+</html>

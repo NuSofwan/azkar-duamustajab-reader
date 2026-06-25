@@ -1,11 +1,13 @@
-const CACHE_NAME = 'dua-mustajab-v22';
+const CACHE_NAME = 'dua-mustajab-v23';
 const urlsToCache = [
     './',
     './index.html',
+    './install.html',
     './style.css',
     './script.js',
     './manifest.json',
     './icon.png',
+    './icon.svg',
     // Only pre-cache the small PDF (493KB). The large PDF (69MB) is too big
     // to pre-cache — it will be cached on-demand after first successful load.
     './th_athkar_assabah_walmasaa.pdf',
@@ -25,7 +27,16 @@ self.addEventListener('install', event => {
         caches.open(CACHE_NAME)
             .then(cache => {
                 console.log('Opened cache');
-                return cache.addAll(urlsToCache);
+                // Cache each URL independently so one failure (e.g. a CDN being
+                // momentarily unreachable) does not abort the whole install,
+                // which would leave the app without a working service worker.
+                return Promise.all(
+                    urlsToCache.map(url =>
+                        cache.add(url).catch(err =>
+                            console.warn('SW precache skipped:', url, err)
+                        )
+                    )
+                );
             })
     );
 });

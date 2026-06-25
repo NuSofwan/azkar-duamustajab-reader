@@ -616,7 +616,7 @@ textarea:focus {
 .page-select:focus {
     border-color: var(--accent);
     outline: none;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 0 2px rgba(255, 138, 101, 0.25);
 }
 
 .pdf-viewer-wrapper {
@@ -995,8 +995,8 @@ body.focus-mode .tasbih-container {
 
 /* Phase 4: Daily Tracking */
 .streak-card {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(147, 197, 253, 0.15));
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    background: linear-gradient(135deg, rgba(255, 138, 101, 0.08), rgba(255, 183, 77, 0.18));
+    border: 1px solid rgba(255, 138, 101, 0.25);
     border-radius: var(--radius);
     padding: 1rem;
     display: flex;
@@ -1006,8 +1006,8 @@ body.focus-mode .tasbih-container {
 }
 
 [data-theme='dark'] .streak-card {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(30, 58, 138, 0.2));
-    border-color: rgba(59, 130, 246, 0.1);
+    background: linear-gradient(135deg, rgba(255, 138, 101, 0.08), rgba(255, 138, 101, 0.16));
+    border-color: rgba(255, 138, 101, 0.2);
 }
 
 .streak-icon {
@@ -1407,5 +1407,71 @@ body.focus-mode .reader-bottom-bar {
     .bottom-page-info {
         font-size: 0.82rem;
         min-width: 80px;
+    }
+}
+
+/* ===== Safe-Area Insets (notched iPhone / iPad in standalone PWA) ===== */
+/* With viewport-fit=cover the layout fills the whole screen, so we add the
+   device safe-area insets back as padding on the fixed/edge UI. max() keeps the
+   original padding when the inset is 0 (non-notched devices, desktop). */
+.navbar {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+}
+
+@media (max-width: 768px) {
+    .navbar {
+        padding-left: max(1rem, env(safe-area-inset-left));
+        padding-right: max(1rem, env(safe-area-inset-right));
+    }
+}
+
+/* Bottom reading bar sits above the iOS home indicator */
+.reader-bottom-bar {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Floating tasbih clears the home indicator and right inset */
+.tasbih-container {
+    bottom: calc(2rem + env(safe-area-inset-bottom));
+    right: calc(2rem + env(safe-area-inset-right));
+}
+
+/* Highlight palette sits below the safe-area top */
+.highlight-tools.fixed-palette {
+    top: calc(80px + env(safe-area-inset-top));
+}
+
+/* Mobile menu drops below the (possibly taller) safe-area navbar */
+@media (max-width: 768px) {
+    .mobile-menu {
+        top: calc(73px + env(safe-area-inset-top));
+    }
+}
+
+/* ===== Accessibility: visible keyboard focus ring ===== */
+/* Only show the ring for keyboard users (focus-visible), not on mouse click. */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+.icon-btn:focus-visible,
+.book-btn:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+/* Respect users who prefer reduced motion: disable page-turn & float anims */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
     }
 }

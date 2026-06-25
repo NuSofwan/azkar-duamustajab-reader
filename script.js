@@ -66,6 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let pageNumPending = null;
     let scale = 1.3; // Allow zooming
     let hasCenteredInitialView = false;
+    // Auto fit-to-width: on the first PDF load we size the page so its width fits
+    // the viewport (crucial on phones, where a fixed 1.3 scale overflows the
+    // screen and forces line-by-line horizontal scrolling). Done once so later
+    // book/page switches keep the user's chosen zoom.
+    let initialFitDone = false;
 
     // Pending scroll correction applied at the end of the next render
     // (used by pinch-to-zoom to re-anchor the view to the pinch point)
@@ -212,7 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Basic UI ---
     navToggle.addEventListener('click', () => { mobileMenu.classList.toggle('open'); });
 
-    if (localStorage.getItem('theme') === 'dark') {
+    // Apply dark theme if the user chose it before, or — when no choice has been
+    // made yet — follow the operating system's color-scheme preference.
+    const storedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (storedTheme === 'dark' || (!storedTheme && prefersDark)) {
         document.body.setAttribute('data-theme', 'dark');
         themeIcon.classList.replace('fa-moon', 'fa-sun');
     }
@@ -320,6 +329,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     hasCenteredInitialView = true;
                 }
             }
+            // Persist the reading position so each book resumes where the user
+            // left off. Written after the centering check so the first-ever load
+            // can still center page 1 before the key exists.
+            try { localStorage.setItem(`${currentBook}_reading_position`, String(num)); } catch (e) { }
             if (pageNumPending !== null) {
                 const pending = pageNumPending;
                 pageNumPending = null;
@@ -708,6 +721,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Compute & apply a width-fitting initial scale from a page's natural size.
+    // Returns a promise; resolves whether or not it succeeds (best-effort).
+    const applyInitialFitScale = (pageDoc, num) => {
+        if (initialFitDone) return Promise.resolve();
+        return pageDoc.getPage(num).then(page => {
+            const unscaled = page.getViewport({ scale: 1 });
+            const pad = window.innerWidth <= 768 ? 16 : 32; // matches .pdf-viewer-wrapper padding
+            const avail = Math.max(200, pdfViewerWrapper.clientWidth - pad);
+            let fit = avail / unscaled.width;
+            // Clamp so it never gets tiny or absurdly large on wide desktops.
+            fit = Math.max(0.6, Math.min(fit, 1.5));
+            scale = Math.round(fit * 100) / 100;
+            initialFitDone = true;
+        }).catch(() => { initialFitDone = true; });
+    };
+
     const onPDFLoaded = (bookName, pdfDoc_) => {
         pdfCache[bookName] = pdfDoc_;
         if (currentBook === bookName) {
@@ -723,21 +752,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageNumSelect.appendChild(opt);
             }
 
-            pageNum = 1;
-            renderPage(pageNum);
-            loadBookmarks();
-            loadTOC(pdfDoc_);
-            if (isMobile) {
-                // On mobile (especially iOS): only pre-render 2 pages ahead.
-                // Each canvas page at 3x DPR = ~30MB RAM. Rendering all pages
-                // would easily exceed iOS's ~150MB tab limit and cause a crash.
-                prerenderPages(bookName, pdfDoc_, 2, 3, true);
-            } else {
-                // Desktop: pre-render generously for instant navigation
-                prerenderPages(bookName, pdfDoc_, 2, 5, true);
-                prerenderPages(bookName, pdfDoc_, 6, 15);
-                setTimeout(() => prerenderPages(bookName, pdfDoc_, 16, pdfDoc_.numPages), 500);
-            }
+            const savedPos = parseInt(localStorage.getItem(`${currentBook}_reading_position`) || '1', 10);
+            pageNum = (savedPos >= 1 && savedPos <= pdfDoc.numPages) ? savedPos : 1;
+
+            const startRender = () => {
+                renderPage(pageNum);
+                loadBookmarks();
+                loadTOC(pdfDoc_);
+                if (isMobile) {
+                    // On mobile (especially iOS): only pre-render 2 pages ahead.
+                    // Each canvas page at 3x DPR = ~30MB RAM. Rendering all pages
+                    // would easily exceed iOS's ~150MB tab limit and cause a crash.
+                    prerenderPages(bookName, pdfDoc_, pageNum + 1, pageNum + 2, true);
+                } else {
+                    // Desktop: pre-render generously for instant navigation
+                    prerenderPages(bookName, pdfDoc_, 2, 5, true);
+                    prerenderPages(bookName, pdfDoc_, 6, 15);
+                    setTimeout(() => prerenderPages(bookName, pdfDoc_, 16, pdfDoc_.numPages), 500);
+                }
+            };
+
+            // Fit page width to the viewport on first load, then render.
+            applyInitialFitScale(pdfDoc_, pageNum).then(startRender);
         } else {
             // Pre-render first 5 pages of non-active book with priority
             if (!isMobile) {
@@ -902,10 +938,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageNumSelect.appendChild(opt);
             }
 
-            pageNum = 1;
-            renderPage(pageNum);
-            loadBookmarks();
-            loadTOC(pdfDoc);
+            const savedPos = parseInt(localStorage.getItem(`${currentBook}_reading_position`) || '1', 10);
+            pageNum = (savedPos >= 1 && savedPos <= pdfDoc.numPages) ? savedPos : 1;
+            applyInitialFitScale(pdfDoc, pageNum).then(() => {
+                renderPage(pageNum);
+                loadBookmarks();
+                loadTOC(pdfDoc);
+            });
             return;
         }
 
@@ -923,6 +962,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectBook = (bookName) => {
         if (currentBook === bookName && pdfDoc) return; // Already viewing
         currentBook = bookName;
+        try { localStorage.setItem('last_book', bookName); } catch (e) { }
 
         [...bookBtnsDesktop, ...bookBtnsMobile].forEach(btn => {
             if (btn.getAttribute('data-book') === bookName) btn.classList.add('active');
@@ -1535,6 +1575,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, { passive: false });
 
+    // --- Keyboard navigation (desktop e-reader) ---
+    // PageUp/PageDown always turn pages. Left/Right turn pages only when the
+    // page is NOT horizontally scrollable, so arrows still pan a zoomed page.
+    document.addEventListener('keydown', (e) => {
+        if (!pdfDoc || isHighlightMode) return;
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'textarea' || tag === 'input' || tag === 'select') return;
+        const canScrollX = (pdfViewerWrapper.scrollWidth - pdfViewerWrapper.clientWidth) > 4;
+        if (e.key === 'PageDown') {
+            e.preventDefault(); onNextPage(); pdfViewerWrapper.scrollTop = 0;
+        } else if (e.key === 'PageUp') {
+            e.preventDefault(); onPrevPage();
+        } else if (e.key === 'ArrowRight' && !canScrollX) {
+            onNextPage(); pdfViewerWrapper.scrollTop = 0;
+        } else if (e.key === 'ArrowLeft' && !canScrollX) {
+            onPrevPage();
+        }
+    });
+
     // --- Scroll Mode: touch swipe to change pages (mobile) ---
     let scrollTouchStartY = 0;
     let scrollTouchStartX = 0;
@@ -1804,7 +1863,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, { passive: true });
 
-    // Auto-load default
+    // Honor ?book= deep-link (PWA shortcuts / share links); otherwise resume the
+    // last book the user was reading.
+    const launchParams = new URLSearchParams(window.location.search);
+    const requestedBook = launchParams.get('book');
+    if (requestedBook && allBooks.includes(requestedBook)) {
+        currentBook = requestedBook;
+    } else {
+        const lastBook = localStorage.getItem('last_book');
+        if (lastBook && allBooks.includes(lastBook)) currentBook = lastBook;
+    }
+
+    // Auto-load default (or the deep-linked / last-read book)
     selectBook(currentBook);
 });
 

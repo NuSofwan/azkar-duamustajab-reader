@@ -1,24 +1,56 @@
 {
-  "name": "Dua Mustajab",
+  "id": "/azkar-duamustajab-reader/",
+  "name": "Dua Mustajab — อ่านดุอาและอัซการ",
   "short_name": "Dua Mustajab",
-  "description": "แอปพลิเคชันสำหรับอ่านหนังสือ Dua Mustajab พร้อมฟีเจอร์จดโน้ต บุ๊กมาร์ก และไฮไลต์",
-  "start_url": "./index.html",
+  "description": "อ่านดุอามุสตาญาบและอัซการยามเช้า-เย็น (ภาษาไทย) พร้อมบุ๊กมาร์ก จดบันทึก ไฮไลต์ ตัสบีห์ และโหมดอ่านสบายตา ใช้งานออฟไลน์ได้",
+  "lang": "th",
+  "dir": "ltr",
+  "start_url": "./index.html?app=true",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#FFF5F0",
+  "theme_color": "#FF8A65",
   "orientation": "any",
+  "categories": ["books", "education", "lifestyle"],
   "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "icon.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "อัซการยามเช้า-เย็น",
+      "short_name": "อัซการ",
+      "url": "./index.html?app=true&book=th_athkar_assabah_walmasaa.pdf",
+      "description": "เปิดอัซการยามเช้าและเย็น"
+    },
+    {
+      "name": "ดุอามุสตาญาบ",
+      "short_name": "ดุอา",
+      "url": "./index.html?app=true&book=dua_mustajab_th.pdf",
+      "description": "เปิดดุอามุสตาญาบ"
     }
   ]
 }
